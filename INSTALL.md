@@ -1,5 +1,12 @@
 # Installation and recovery
 
+> [!WARNING]
+> **Use at your own risk.** Flashing can brick your radio or destroy settings and
+> calibration. No warranty, recovery or compensation is promised. Liability is
+> disclaimed to the fullest extent permitted by law. You are responsible for
+> required licenses, authorizations and compliance before transmitting.
+> Read [SAFETY.md](SAFETY.md) before proceeding.
+
 This experimental build is intended for the **UV-K1 with PY32F071 MCU**.
 It is not the older UV-K5/UV-K6 build. Do not infer compatibility from the
 radio's appearance or from the upstream repository's other supported models.

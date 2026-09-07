@@ -4,6 +4,14 @@ A community-developed interface for the **Quansheng UV-K1**, based on
 [F4HWN Fusion 5.9.0](https://github.com/armel/uv-k1-k5v3-firmware-custom).
 An independent, experimental fork—not an official F4HWN release.
 
+> [!WARNING]
+> **Use at your own risk.** This firmware can brick your radio, erase calibration
+> or cause unexpected transmissions. No warranty, repair or compensation is
+> promised. To the fullest extent permitted by law, maintainers and contributors
+> disclaim liability for resulting damage, losses, interference or unlawful use.
+> **You are responsible for required licenses, authorizations and lawful operation.**
+> Read the [full safety and liability disclaimer](SAFETY.md) before flashing.
+
 ![ClearUI interface gallery](images/clearui-gallery.png)
 
 These are host-rendered UI previews, not photographs. Channel names, signal
@@ -25,7 +33,7 @@ See [more display layouts](images/clearui-vfo-gallery.png).
 
 ## Status and supported hardware
 
-**C8c is an experimental prerelease for UV-K1.** The upstream repository also
+**C8c is an experimental release for UV-K1.** The upstream repository also
 targets UV-K5 V3, but this fork's community build is not claimed tested on that
 model. Do **not** flash it onto an older UV-K5/UV-K6 with the DP32G030 MCU.
 
