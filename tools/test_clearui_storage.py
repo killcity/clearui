@@ -43,6 +43,14 @@ void PY25Q16_WriteBuffer(uint32_t address, const void *buffer, uint32_t size, bo
 '''
 TESTS = r'''
 int main(void) {
+    uint8_t settings[8];
+    memset(settings, 0xFF, sizeof(settings));
+    assert(!SETTINGS_ClearUIMeterStyle(settings)); // fresh/full reset: Spine
+    settings[0] = 0; // Saved block: even 0xFF in byte 5 remains a valid choice.
+    for (unsigned value = 0; value < 256; ++value) {
+        settings[5] = value;
+        assert(SETTINGS_ClearUIMeterStyle(settings) == ((value & 0x40) != 0));
+    }
     uint8_t data[8] = {1,2,3,4,5,6,7,8};
     assert(sizeof(ChannelAttributes_t) == 2);
     EEPROM_WriteBuffer(0xD000, data);
@@ -82,7 +90,7 @@ int main(void) {
     assert(RADIO_CheckValidList(1));
     SETTINGS_UpdateChannel(0, &vfo, false);
     assert(!attributes[0].unused_2 && attributes[0].band == 7);
-    puts("Address mapping, calibration/logo separation, persistent skip and channel edits: passed");
+    puts("Address mapping, calibration/logo separation, persistent skips, channel edits and Spine defaults: passed");
 }
 '''
 
@@ -90,6 +98,7 @@ def main():
     routines = function("App/radio.c", "RADIO_CheckValidList")
     routines += function("App/radio.c", "RADIO_CheckValidChannel")
     routines += function("App/settings.c", "SETTINGS_UpdateChannel")
+    routines += function("App/settings.c", "SETTINGS_ClearUIMeterStyle")
     with tempfile.TemporaryDirectory(prefix="clearui-storage-") as tmp:
         source, binary = Path(tmp) / "test.c", Path(tmp) / "test"
         source.write_text(PREAMBLE + routines + TESTS)

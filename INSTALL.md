@@ -12,7 +12,7 @@ radio's appearance or from the upstream repository's other supported models.
 - Charge the battery and use a reliable programming cable/USB connection.
 - Do not interrupt power during flashing or upload another radio's calibration.
 
-Flash `Fusion-v5.9.0-ClearUI-C8b-UV-K1.bin` using the normal UV-K1/Fusion
+Flash `Fusion-v5.9.0-ClearUI-C8c-UV-K1.bin` using the normal UV-K1/Fusion
 flashing workflow. Upstream documents its tooling in
 [README-UPSTREAM.md](README-UPSTREAM.md#flashing-the-firmware-with-uv-studio).
 Do not use the legacy K5 V1 recovery utility in the upstream tools directory
@@ -30,7 +30,7 @@ uploading. Keep an untouched copy. Stock Fusion images lack ClearUI's extended
 group-name region; do not bypass an image-size or firmware-compatibility error.
 
 The programming format intentionally identifies as **ClearUI C5**, even when
-the displayed build is C8b. A C8 driver works with C8b; an old C1-only driver
+the displayed build is C8c. A C8 driver works with C8c; an old C1-only driver
 does not. The ABI identifier is not the UI release number.
 
 Group names are editable in the CHIRP scan-list settings and support up to
@@ -39,8 +39,10 @@ a **Receive only** setting; check it explicitly where transmission must be
 disabled. Flashing does not classify frequencies, set channel power, or make
 an existing channel list receive-only.
 
-Updating C8/C8a to C8b needs no factory reset or channel re-upload just for
-the logo correction. Back up first regardless. When returning to stock firmware,
+Updating C8/C8a/C8b to C8c needs no factory reset or channel re-upload. The
+vertical Spine meter defaults on fresh/full-reset settings; upgrades keep the
+saved choice. Select Meter style → Spine to switch without resetting.
+Back up first regardless. When returning to stock firmware,
 restore an appropriate stock-format backup; do not assume it honors ClearUI's
 receive-only marker or extended group names.
 

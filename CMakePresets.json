@@ -232,7 +232,7 @@
             "cacheVariables": {
                 "ENABLE_CLEAR_UI": true,
                 "ENABLE_LTO": true,
-                "EDITION_STRING": "ClearUI C8b",
+                "EDITION_STRING": "ClearUI C8c",
                 "TARGET": "f4hwn.clearui"
             }
         }

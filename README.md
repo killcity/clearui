@@ -4,7 +4,12 @@ A community-developed interface for the **Quansheng UV-K1**, based on
 [F4HWN Fusion 5.9.0](https://github.com/armel/uv-k1-k5v3-firmware-custom).
 An independent, experimental fork—not an official F4HWN release.
 
-![ClearUI startup logo rendered by the firmware](images/clearui-boot.png)
+![ClearUI interface gallery](images/clearui-gallery.png)
+
+These are host-rendered UI previews, not photographs. Channel names, signal
+levels and waterfall history are illustrative. Menu backgrounds are simplified
+test fixtures; menu pixels and VFO panels use the firmware drawing code.
+See [more display layouts](images/clearui-vfo-gallery.png).
 
 ## What changes
 
@@ -20,12 +25,12 @@ An independent, experimental fork—not an official F4HWN release.
 
 ## Status and supported hardware
 
-**C8b is an experimental prerelease for UV-K1.** The upstream repository also
+**C8c is an experimental prerelease for UV-K1.** The upstream repository also
 targets UV-K5 V3, but this fork's community build is not claimed tested on that
 model. Do **not** flash it onto an older UV-K5/UV-K6 with the DP32G030 MCU.
 
 Builds and host-side regression tests pass locally. Earlier iterations have
-been tried on a UV-K1, but C8b has not completed a hardware-validation cycle.
+been tried on a UV-K1, but C8c has not completed a hardware-validation cycle.
 The known B-VFO signal-meter problem in dual watch remains under investigation.
 Passing host tests does not establish RF performance or hardware safety.
 
@@ -68,6 +73,10 @@ Function holds apply from the idle main screen; number entry, locking and
 scanning can take precedence. In option lists, Right moves down and Left
 moves up. Set **Navigation keys → Left/Right (UV-K1)** for channel browsing.
 Menu confirms a choice; Exit goes back. The waterfall has a separate quick menu.
+
+The vertical **Spine** signal meter is the default for fresh/full-reset settings.
+Existing saved choices are preserved; choose **Meter style → Spine** to switch
+without resetting. Ribbon remains available as the horizontal alternative.
 
 ## Build and test
 

@@ -81,8 +81,14 @@ static void UI_GenerateChannelStringEx(char *text, bool valid, int value) {
     (void)valid; sprintf(text, "CH-%04d", value + 1);
 }
 static bool unnamed_group;
+static bool gallery_groups;
 static const char *CLEARUI_GetListName(int list) {
-    assert(list >= 0 && list < 24); return unnamed_group ? "" : "ABCDEFGHIJKLMNOP";
+    assert(list >= 0 && list < 24);
+    if (gallery_groups) {
+        static const char *names[]={"Local repeaters","Simplex","Weather","Marine","Favorites"};
+        return list < 5 ? names[list] : "";
+    }
+    return unnamed_group ? "" : "ABCDEFGHIJKLMNOP";
 }
 static void BACKLIGHT_SetBrightness(int level) {assert(level >= 0 && level <= 10);}
 static void ST7565_ContrastAndInv(void) {}
@@ -444,7 +450,7 @@ int main(int argc, char **argv) {
         UI_DisplayClearUIScanGroup();
         snprintf(path,sizeof(path),"%s.list-name.pgm",argv[1]); preview(path);
         gClearUIListNameEditor=false; gClearUIEditingListNames=false;
-        gClearUIScanMemoryMode=true; gClearUIScanSelection=0; unnamed_group=true;
+        gClearUIScanMemoryMode=true; gClearUIScanSelection=0; gallery_groups=true;
         UI_DisplayClearUIScanGroup();
         snprintf(path,sizeof(path),"%s.groups.pgm",argv[1]); preview(path);
     }

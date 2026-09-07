@@ -35,3 +35,10 @@ and RF/audio behavior still need hardware validation before a stable release.
 Additional local conversion/driver tests used private source memories. Those
 inputs and reports are deliberately not part of this public repository.
 Use synthetic fixtures for public tests.
+
+## Regenerate the gallery
+
+After configuring ClearUI, install Pillow 11+ in your development Python
+environment and run `python3 tools/render_clearui_gallery.py`. It uses the
+actual UI harnesses with synthetic data, then places unmodified screen pixels
+in captioned cards. Keep previews clearly labeled; they are not radio photos.

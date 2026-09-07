@@ -48,6 +48,19 @@ static void SETTINGS_LoadEepromDtmf(uint32_t addr, char *dest, size_t size, cons
     }
 }
 
+#ifdef ENABLE_CLEAR_UI
+static bool SETTINGS_ClearUIMeterStyle(const uint8_t *block)
+{
+    // An entirely erased settings block is a fresh/full-reset configuration.
+    // Preserve every saved meter choice, including a valid 0xFF style byte.
+    bool erased = true;
+    for (uint8_t i = 0; i < 8; ++i)
+        if (block[i] != 0xFF)
+            erased = false;
+    return !erased && (block[5] & 0x40) != 0; // 0 = vertical Spine
+}
+#endif
+
 void SETTINGS_InitEEPROM(void)
 {
     uint8_t Data[16] = {0};
@@ -497,7 +510,11 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
         gSetting_set_inv = 0;
 #endif
         gSetting_set_lck = (Data[2] < SET_LCK_LEN) ? Data[2] : SET_LCK_KEYS;
+#ifdef ENABLE_CLEAR_UI
+        gSetting_set_met = SETTINGS_ClearUIMeterStyle(Data);
+#else
         gSetting_set_met = (tmp >> 2) & 0x01;
+#endif
         gSetting_set_gui = (tmp >> 3) & 0x01;
 
 #ifdef ENABLE_FEAT_F4HWN_CTR
