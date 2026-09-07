@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -24,6 +25,9 @@
     #include "app/fm.h"
 #endif
 #include "app/generic.h"
+#ifdef ENABLE_CLEAR_UI
+    #include "app/clearui.h"
+#endif
 #include "app/main.h"
 #include "app/scanner.h"
 
@@ -44,6 +48,9 @@
 #include "radio.h"
 #include "settings.h"
 #include "ui/inputbox.h"
+#ifdef ENABLE_CLEAR_UI
+    #include "ui/clearui.h"
+#endif
 #include "ui/main.h"
 #include "ui/menu.h"
 #include "ui/ui.h"
@@ -302,6 +309,13 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
             }
             else {
                 if (RADIO_CheckValidChannel(gEeprom.CHAN_1_CALL, false, 0)) {
+#ifdef ENABLE_CLEAR_UI
+                    if (!CLEARUI_ChannelInGroup(gEeprom.CHAN_1_CALL, CLEARUI_GetGroup(Vfo))) {
+                        UI_CLEARUI_ShowToast("Outside group");
+                        gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
+                        return;
+                    }
+#endif
                     gEeprom.MrChannel[Vfo]     = gEeprom.CHAN_1_CALL;
                     gEeprom.ScreenChannel[Vfo] = gEeprom.CHAN_1_CALL;
 #ifdef ENABLE_VOICE
@@ -324,6 +338,9 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 
                 if (gScanStateDir != SCAN_OFF) {
                     RADIO_NextValidList(isKeyUp ? 1 : -1);
+#ifdef ENABLE_CLEAR_UI
+                    CLEARUI_SelectGroup(gEeprom.SCAN_LIST_DEFAULT);
+#endif
                     UI_MAIN_NotifyScanListChanged();
                 } else {
                     // Adjust squelch: UP increments, DOWN decrements
@@ -376,6 +393,17 @@ static void processFKeyFunction(const KEY_Code_t Key, const bool beep)
 void channelMove(uint16_t Channel)
 {
     const uint8_t Vfo = gEeprom.TX_VFO;
+
+#ifdef ENABLE_CLEAR_UI
+    if (RADIO_CheckValidChannel(Channel, false, 0) &&
+        !CLEARUI_ChannelInGroup(Channel, CLEARUI_GetGroup(Vfo))) {
+        if (gInputBoxIndex == 0 || gKeyInputCountdown <= 1) {
+            UI_CLEARUI_ShowToast("Outside group");
+            gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
+        }
+        return;
+    }
+#endif
 
     if (!RADIO_CheckValidChannel(Channel, false, 0)) {
         if (gKeyInputCountdown <= 1) {
@@ -445,8 +473,66 @@ void channelMoveSwitch(void) {
     }
 }
 
+#ifdef ENABLE_CLEAR_UI
+static bool MAIN_ClearUIKeyHold(KEY_Code_t key, bool pressed, bool held)
+{
+    if (!pressed && gClearUIIgnoreNextRelease) {
+        gClearUIIgnoreNextRelease = false;
+        return true;
+    }
+    if (!pressed || !held || gWasFKeyPressed || gScanStateDir != SCAN_OFF)
+        return false;
+    if (gInputBoxIndex || gClearUINumericEntry) return true;
+#ifdef ENABLE_FEAT_F4HWN_RESCUE_OPS
+    if (gEeprom.MENU_LOCK && key != KEY_2) return true;
+#endif
+    if (gClearUIIgnoreNextRelease) return true;
+    return CLEARUI_OpenKeyMenu(key);
+}
+#endif
+
 static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 {
+#ifdef ENABLE_CLEAR_UI
+    static bool clearuiTwoHeld;
+
+    if (MAIN_ClearUIKeyHold(Key, bKeyPressed, bKeyHeld)) return;
+
+    if (Key == KEY_2 && gInputBoxIndex == 0 && !gClearUINumericEntry)
+    {
+        if (!bKeyPressed)
+        {
+            if (clearuiTwoHeld)
+            {
+                clearuiTwoHeld = false;
+                return;
+            }
+
+            HideFKeyIcon();
+            gVfoConfigureMode = VFO_CONFIGURE;
+            COMMON_SwitchVFOs();
+            gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+            return;
+        }
+
+        if (bKeyHeld)
+        {
+            if (!clearuiTwoHeld)
+            {
+                clearuiTwoHeld = true;
+                HideFKeyIcon();
+                gInputBoxIndex = 0;
+                CLEARUI_ToggleDual();
+                gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+            }
+            return;
+        }
+
+        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+        return;
+    }
+#endif
+
     if (bKeyHeld) { // key held down
         if (bKeyPressed) {
             if (gScreenToDisplay == DISPLAY_MAIN) {
@@ -516,7 +602,11 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             /* 00 = ALL scan lists */
             if (value == 0)
             {
+#ifdef ENABLE_CLEAR_UI
+                CLEARUI_SelectGroup(MR_CHANNELS_LIST + 1);
+#else
                 gEeprom.SCAN_LIST_DEFAULT = MR_CHANNELS_LIST + 1;
+#endif
                 UI_MAIN_NotifyScanListChanged();
             #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
                 SETTINGS_WriteCurrentState();
@@ -527,6 +617,10 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
             /* 01 .. MR_CHANNELS_LIST */
             if (value <= MR_CHANNELS_LIST)
             {
+#ifdef ENABLE_CLEAR_UI
+                if (!CLEARUI_SelectGroup(value))
+                    return;
+#else
                 gEeprom.SCAN_LIST_DEFAULT = value;
 
                 if (!RADIO_CheckValidList(value))
@@ -536,6 +630,7 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
                     gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
                     RADIO_NextValidList(1);
                 }
+#endif
                 UI_MAIN_NotifyScanListChanged();
 
             #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
@@ -557,6 +652,9 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
         }
 
         INPUTBOX_Append(Key);
+#ifdef ENABLE_CLEAR_UI
+        gClearUINumericEntry = false;
+#endif
         gKeyInputCountdown = key_input_timeout_500ms;
 
         channelMoveSwitch();
@@ -694,6 +792,14 @@ static void MAIN_Key_DIGITS(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
 static void MAIN_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (gClearUINumericEntry && !bKeyPressed)
+    {
+        gClearUINumericEntry = false;
+        gUpdateDisplay = true;
+        return;
+    }
+#endif
     if (!bKeyHeld && bKeyPressed) { // exit key pressed
         gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;  // beep when key is pressed
         return;                                 // don't use the key till it's released
@@ -762,11 +868,27 @@ static void MAIN_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
 
 static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (!bKeyPressed && gClearUIIgnoreNextRelease)
+    {
+        gClearUIIgnoreNextRelease = false;
+        return;
+    }
+#endif
+
     if (bKeyPressed && !bKeyHeld) // menu key pressed
         gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
 
     if (bKeyHeld) { // menu key held down (long press)
         if (bKeyPressed) { // long press MENU key
+
+#ifdef ENABLE_CLEAR_UI
+            gClearUIIgnoreNextRelease = true;
+            HideFKeyIcon();
+            CLEARUI_OpenMainMenu();
+            gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+            return;
+#endif
 
             #ifdef ENABLE_FEAT_F4HWN
             // Exclude current scan entry
@@ -831,6 +953,10 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
         gInputBoxIndex   = 0;
 
         if (bFlag) {
+#ifdef ENABLE_CLEAR_UI
+            HideFKeyIcon();
+            CLEARUI_OpenQuickMenu();
+#else
             if (gScanStateDir != SCAN_OFF) {
                 CHFRSCANNER_Stop();
                 return;
@@ -854,6 +980,7 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
             #ifdef ENABLE_VOICE
                 gAnotherVoiceID   = VOICE_ID_MENU;
             #endif
+#endif
         }
         else {
             gRequestDisplayScreen = DISPLAY_MAIN;
@@ -863,6 +990,14 @@ static void MAIN_Key_MENU(bool bKeyPressed, bool bKeyHeld)
 
 static void MAIN_Key_STAR(bool bKeyPressed, bool bKeyHeld)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (!bKeyPressed && gClearUIIgnoreNextRelease)
+    {
+        gClearUIIgnoreNextRelease = false;
+        return;
+    }
+#endif
+
     if (gCurrentFunction == FUNCTION_TRANSMIT)
         return;
     
@@ -889,6 +1024,12 @@ static void MAIN_Key_STAR(bool bKeyPressed, bool bKeyHeld)
         if (!bKeyPressed) // released
             return; 
 
+#ifdef ENABLE_CLEAR_UI
+        gClearUIIgnoreNextRelease = true;
+        CLEARUI_OpenScanMenu();
+        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+        return;
+#else
         /*
         #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
         if(gScanRangeStart == 0) // No ScanRange
@@ -906,10 +1047,18 @@ static void MAIN_Key_STAR(bool bKeyPressed, bool bKeyHeld)
 
         gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
         return;
+#endif
     }
     
     if (!gWasFKeyPressed) // pressed without the F-key
     {   
+#ifdef ENABLE_CLEAR_UI
+        if (gScanStateDir != SCAN_OFF)
+            CHFRSCANNER_Stop();
+        else
+            ACTION_Scan(false);
+        gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+#else
         if (gScanStateDir == SCAN_OFF 
 #ifdef ENABLE_NOAA
             && !IS_NOAA_CHANNEL(gTxVfo->CHANNEL_SAVE)
@@ -929,6 +1078,7 @@ static void MAIN_Key_STAR(bool bKeyPressed, bool bKeyHeld)
         }
         else
             gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
+#endif
     }
     else
     {   // with the F-key
@@ -1019,7 +1169,12 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
                 return;
             }
 
+#ifdef ENABLE_CLEAR_UI
+            Next = CLEARUI_FindGroupChannel(Channel + Direction, Direction,
+                                            CLEARUI_GetGroup(gEeprom.TX_VFO));
+#else
             Next = RADIO_FindNextChannel(Channel + Direction, Direction, false, 0);
+#endif
             if (Next == 0xFFFF)
                 return;
             if (Channel == Next)
@@ -1055,6 +1210,10 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
 
 void MAIN_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (Key == KEY_PTT)
+        gClearUINumericEntry = false;
+#endif
 #ifdef ENABLE_FMRADIO
     if (gFmRadioMode && Key != KEY_PTT && Key != KEY_EXIT) {
         if (!bKeyHeld && bKeyPressed)

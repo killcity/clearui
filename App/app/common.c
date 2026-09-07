@@ -1,4 +1,8 @@
+/* ClearUI C3 modifications (2026): per-VFO group selection. */
 #include "app/chFrScanner.h"
+#ifdef ENABLE_CLEAR_UI
+#include "app/clearui.h"
+#endif
 #include "audio.h"
 #include "functions.h"
 #include "misc.h"
@@ -25,10 +29,17 @@ void COMMON_KeypadLockToggle()
 
 void COMMON_SwitchVFOs()
 {
+#ifdef ENABLE_CLEAR_UI
+    if (gScanStateDir != SCAN_OFF)
+        CHFRSCANNER_Stop();
+#endif
 #ifdef ENABLE_SCAN_RANGES    
     gScanRangeStart = 0;
 #endif
     gEeprom.TX_VFO ^= 1;
+#ifdef ENABLE_CLEAR_UI
+    CLEARUI_SyncGroup();
+#endif
 
     if (gInputBoxIndex > 0) {
         gInputBoxIndex = 0;
@@ -71,7 +82,12 @@ void COMMON_SwitchVFOMode()
             return;
         }
 
+#ifdef ENABLE_CLEAR_UI
+        uint16_t Channel = CLEARUI_FindGroupChannel(gEeprom.MrChannel[gEeprom.TX_VFO], 1,
+                                                    CLEARUI_GetGroup(gEeprom.TX_VFO));
+#else
         uint16_t Channel = RADIO_FindNextChannel(gEeprom.MrChannel[gEeprom.TX_VFO], 1, false, 0);
+#endif
         if (Channel != 0xFFFF)
         {   // swap to channel mode
             gEeprom.ScreenChannel[gEeprom.TX_VFO] = Channel;

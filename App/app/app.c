@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -37,6 +38,9 @@
     #include "app/fm.h"
 #endif
 #include "app/generic.h"
+#ifdef ENABLE_CLEAR_UI
+    #include "app/clearui.h"
+#endif
 #include "app/main.h"
 #include "app/menu.h"
 #ifdef ENABLE_FEAT_F4HWN_RXTX_LOG
@@ -77,6 +81,9 @@
 #include "ui/battery.h"
 #include "ui/helper.h"
 #include "ui/inputbox.h"
+#ifdef ENABLE_CLEAR_UI
+    #include "ui/clearui.h"
+#endif
 #include "ui/main.h"
 #include "ui/menu.h"
 #include "ui/status.h"
@@ -111,6 +118,12 @@ void (*const ProcessKeysFunctions[])(KEY_Code_t Key, bool bKeyPressed, bool bKey
     [DISPLAY_MAIN] = &MAIN_ProcessKeys,
     [DISPLAY_MENU] = &MENU_ProcessKeys,
     [DISPLAY_SCANNER] = &SCANNER_ProcessKeys,
+
+#ifdef ENABLE_CLEAR_UI
+    [DISPLAY_CLEAR_MENU] = &CLEARUI_MENU_ProcessKeys,
+    [DISPLAY_QUICK] = &CLEARUI_QUICK_ProcessKeys,
+    [DISPLAY_SCAN_GROUP] = &CLEARUI_SCAN_ProcessKeys,
+#endif
 
 #ifdef ENABLE_FMRADIO
     [DISPLAY_FM] = &FM_ProcessKeys,
@@ -707,7 +720,9 @@ static void HandleFunction(void)
 
 void APP_StartListening(FUNCTION_Type_t function)
 {
+#if !defined(ENABLE_CLEAR_UI) || defined(ENABLE_NOAA)
     const unsigned int vfo = gEeprom.RX_VFO;
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_LOGO_SAV
     ScreenSaverExit();
@@ -727,8 +742,10 @@ void APP_StartListening(FUNCTION_Type_t function)
         BK1080_Init0();
 #endif
 
-    // clear the other vfo's rssi level (to hide the antenna symbol)
+#ifndef ENABLE_CLEAR_UI
+    // The stock display presents only one live RSSI value.
     gVFO_RSSI_bar_level[!vfo] = 0;
+#endif
 
     AUDIO_AudioPathOn();
     gEnableSpeaker = true;
@@ -1624,6 +1641,9 @@ void APP_TimeSlice10ms(void)
 
     if (gCurrentFunction != FUNCTION_POWER_SAVE || !gRxIdleMode)
         CheckRadioInterrupts();
+#ifdef ENABLE_CLEAR_UI
+    UI_CLEARUI_TimeSlice10ms();
+#endif
 #ifdef ENABLE_FEAT_F4HWN_ACTION_PICKER
     if (gActionPickerKey != 0 && FUNCTION_IsRx()) {
         gActionPickerKey = 0;
@@ -1634,13 +1654,13 @@ void APP_TimeSlice10ms(void)
 
     if (gCurrentFunction == FUNCTION_TRANSMIT)
     {   // transmitting
-#if defined(ENABLE_AUDIO_BAR) && !defined(ENABLE_FEAT_F4HWN_AUDIO_SCOPE)
+#if defined(ENABLE_AUDIO_BAR) && !defined(ENABLE_FEAT_F4HWN_AUDIO_SCOPE) && !defined(ENABLE_CLEAR_UI)
         if (gSetting_mic_bar && (gFlashLightBlinkCounter % (150 / 10)) == 0) // once every 150ms
             UI_DisplayAudioBar();
 #endif
     }
 
-#ifdef ENABLE_FEAT_F4HWN_AUDIO_SCOPE
+#if defined(ENABLE_FEAT_F4HWN_AUDIO_SCOPE) && !defined(ENABLE_CLEAR_UI)
     if (gSetting_mic_bar && (gFlashLightBlinkCounter % (20 / 10)) == 0) // once every 20ms
         // Sample audio amplitude and refresh display during TX only (FM RX has no usable audio register)
         UI_DisplayAudioScope();
@@ -1905,7 +1925,11 @@ void APP_TimeSlice500ms(void)
 
     if (gMenuCountdown > 0)
         if (--gMenuCountdown == 0)
-            exit_menu = (gScreenToDisplay == DISPLAY_MENU); // exit menu mode
+            exit_menu = (gScreenToDisplay == DISPLAY_MENU
+#ifdef ENABLE_CLEAR_UI
+                      || gScreenToDisplay == DISPLAY_CLEAR_MENU
+#endif
+                         ); // exit menu mode
 
 #ifdef ENABLE_DTMF_CALLING
     if (gDTMF_RX_timeout > 0)
@@ -2325,7 +2349,11 @@ static void ProcessKey(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 #endif
         }
 
-        if (gScreenToDisplay == DISPLAY_MENU)       // 1of11
+        if (gScreenToDisplay == DISPLAY_MENU
+#ifdef ENABLE_CLEAR_UI
+            || gScreenToDisplay == DISPLAY_CLEAR_MENU
+#endif
+            )       // 1of11
             gMenuCountdown = menu_timeout_500ms;
 
 #ifdef ENABLE_DTMF_CALLING

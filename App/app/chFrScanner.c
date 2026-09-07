@@ -1,9 +1,15 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 
 #include <stddef.h>
 #include <string.h>
 
 #include "app/app.h"
 #include "app/chFrScanner.h"
+#ifdef ENABLE_CLEAR_UI
+#include "app/clearui.h"
+#include "ui/clearui.h"
+#include "ui/ui.h"
+#endif
 #include "audio.h"
 #ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER
 #include "driver/systick.h"
@@ -430,6 +436,9 @@ static bool ScanFastUpdateDisplayVfo(uint16_t channel, uint32_t *frequency, Modu
     scanFastDisplayVfo.CHANNEL_BANDWIDTH = info.channelBandwidth;
     scanFastDisplayVfo.BUSY_CHANNEL_LOCK = info.busyChannelLock;
     scanFastDisplayVfo.TX_LOCK = info.txLock;
+#ifdef ENABLE_CLEAR_UI
+    scanFastDisplayVfo.RECEIVE_ONLY = info.receiveOnly;
+#endif
 #ifdef ENABLE_DTMF_CALLING
     scanFastDisplayVfo.DTMF_DECODING_ENABLE = info.dtmfDecodingEnable;
 #endif
@@ -751,6 +760,20 @@ static void SetMemScanProgressChannel(uint16_t channel)
 
 void CHFRSCANNER_Start(const bool storeBackupSettings, const int8_t scan_direction)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (IS_MR_CHANNEL(gEeprom.ScreenChannel[gEeprom.TX_VFO]))
+    {
+        CLEARUI_SyncGroup();
+        if (!RADIO_CheckValidList(gEeprom.SCAN_LIST_DEFAULT))
+        {
+            if (gScanStateDir != SCAN_OFF)
+                CHFRSCANNER_Stop();
+            UI_CLEARUI_ShowToast("Nothing to scan");
+            gRequestDisplayScreen = DISPLAY_MAIN;
+            return;
+        }
+    }
+#endif
     if (storeBackupSettings) {
         initialCROSS_BAND_RX_TX = gEeprom.CROSS_BAND_RX_TX;
         gEeprom.CROSS_BAND_RX_TX = CROSS_BAND_OFF;
@@ -774,10 +797,12 @@ void CHFRSCANNER_Start(const bool storeBackupSettings, const int8_t scan_directi
     {
         bool scanListChanged = false;
 
+#ifndef ENABLE_CLEAR_UI
         if(!RADIO_CheckValidList(gEeprom.SCAN_LIST_DEFAULT)) {
             RADIO_NextValidList(1);
             scanListChanged = true;
         }
+#endif
 
         if (storeBackupSettings || scanListChanged)
             UI_MAIN_NotifyScanListChanged();
@@ -1069,7 +1094,13 @@ static void NextMemChannel(void)
 
                 if (chan1 >= 0)
                 {
-                    if (RADIO_CheckValidChannel(chan1, false, gEeprom.SCAN_LIST_DEFAULT))
+                    if (RADIO_CheckValidChannel(chan1, false, gEeprom.SCAN_LIST_DEFAULT)
+#ifdef ENABLE_CLEAR_UI
+                        && CLEARUI_ChannelInGroup(chan1, gEeprom.SCAN_LIST_DEFAULT)
+                        && !MR_GetChannelAttributes(chan1)->exclude
+                        && !MR_GetChannelAttributes(chan1)->unused_2
+#endif
+                    )
                     {
                         currentScanList = SCAN_NEXT_CHAN_SCANLIST1;
                         gNextMrChannel   = chan1;
@@ -1085,7 +1116,13 @@ static void NextMemChannel(void)
 
                 if (chan2 >= 0)
                 {
-                    if (RADIO_CheckValidChannel(chan2, false, gEeprom.SCAN_LIST_DEFAULT))
+                    if (RADIO_CheckValidChannel(chan2, false, gEeprom.SCAN_LIST_DEFAULT)
+#ifdef ENABLE_CLEAR_UI
+                        && CLEARUI_ChannelInGroup(chan2, gEeprom.SCAN_LIST_DEFAULT)
+                        && !MR_GetChannelAttributes(chan2)->exclude
+                        && !MR_GetChannelAttributes(chan2)->unused_2
+#endif
+                    )
                     {
                         currentScanList = SCAN_NEXT_CHAN_SCANLIST2;
                         gNextMrChannel   = chan2;
@@ -1139,7 +1176,28 @@ static void NextMemChannel(void)
         chan = RADIO_FindNextChannel(gNextMrChannel + gScanStateDir, gScanStateDir, true, gEeprom.SCAN_LIST_DEFAULT);
         if (chan == 0xFFFF)
         {   // no valid channel found -> wrapping back to the first channel
+#ifdef ENABLE_CLEAR_UI
+            // A priority-only group is still scannable. Never fall back to an
+            // unrelated channel when all ordinary members are skipped/deleted.
+            const int16_t priority[2] = {chan1, chan2};
+            for (uint8_t i = 0; enabled && i < 2; i++)
+                if (priority[i] >= 0 &&
+                    CLEARUI_ChannelInGroup(priority[i], gEeprom.SCAN_LIST_DEFAULT) &&
+                    !MR_GetChannelAttributes(priority[i])->exclude &&
+                    !MR_GetChannelAttributes(priority[i])->unused_2)
+                {
+                    chan = priority[i];
+                    break;
+                }
+            if (chan == 0xFFFF)
+            {
+                CHFRSCANNER_Stop();
+                UI_CLEARUI_ShowToast("Nothing to scan");
+                return;
+            }
+#else
             chan = MR_CHANNEL_FIRST;
+#endif
 #ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER
             // Wraparound: re-warm the precheck noise floor on the new pass
             // so it tracks current RF conditions instead of an EMA that

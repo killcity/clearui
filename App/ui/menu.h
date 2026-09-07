@@ -1,3 +1,4 @@
+/* ClearUI modifications (2026): list-based menu integration. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -261,7 +262,11 @@ extern const char* const            gSubMenu_ROGER[3];
 extern const char* const            gSubMenu_RESET[2];
 extern const char* const            gSubMenu_F_LOCK[F_LOCK_LEN];
 extern const char* const            gSubMenu_RX_TX[4];
+#ifdef ENABLE_CLEAR_UI
+extern const char* const            gSubMenu_BAT_TXT[4];
+#else
 extern const char* const            gSubMenu_BAT_TXT[3];
+#endif
 extern const char* const            gSubMenu_BATTYP[5];
 extern const char* const            gSubMenu_SET_NAV[2];
 

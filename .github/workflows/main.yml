@@ -1,24 +1,63 @@
-name: Build Firmware
+name: ClearUI build and host tests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, clearui ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    - name: Checkout
+      uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      with:
+        persist-credentials: false
 
-    - name: Compile firmware
+    - name: Install build tools
       run: |
-        chmod +x compile-with-docker.sh
-        ./compile-with-docker.sh
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build build-essential python3 curl xz-utils
+
+    - name: Install verified Arm GNU Toolchain 13.3.Rel1
+      working-directory: ${{ runner.temp }}
+      run: |
+        curl --fail --location --retry 3 --output arm-toolchain.tar.xz https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz
+        echo '95c011cee430e64dd6087c75c800f04b9c49832cc1000127a92a97f9c8d83af4  arm-toolchain.tar.xz' | sha256sum --check
+        tar -xf arm-toolchain.tar.xz
+        echo "$RUNNER_TEMP/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi/bin" >> "$GITHUB_PATH"
+
+    - name: Build ClearUI and stock-behavior Fusion
+      run: |
+        cmake --preset ClearUI
+        cmake --build --preset ClearUI -j4
+        cmake --preset Fusion
+        cmake --build --preset Fusion -j4
+
+    - name: Host regression checks
+      run: python3 tools/test_clearui.py
+
+    - name: Validate firmware image bounds
+      run: |
+        python3 -c 'from pathlib import Path; import struct; b=Path("build/ClearUI/f4hwn.clearui.bin").read_bytes(); sp,pc=struct.unpack_from("<II", b); assert sp==0x20004000 and pc&1 and 0x08002800 <= (pc&~1) < 0x08002800+len(b); assert len(b)<=120832 and b"ClearUI C5" in b; print(len(b), "bytes; UV-K1 vectors and flash limit passed")'
+        sha256sum build/ClearUI/f4hwn.clearui.bin chirp/fusion-clearui-chirp-c8.py
 
     - name: Upload firmware artifact
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: firmware-artifact
-        path: compiled-firmware/f4hwn.packed.bin
+        name: ClearUI-UV-K1-experimental
+        if-no-files-found: error
+        path: |
+          build/ClearUI/f4hwn.clearui.bin
+          chirp/fusion-clearui-chirp-c8.py
+          chirp/COPYING
+          LICENSE
+          NOTICE
+          LICENSES/
+          INSTALL.md

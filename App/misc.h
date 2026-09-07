@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -268,7 +269,7 @@ typedef union {
             band :      3,
             compander : 2,
             unused_1 :  1,
-            unused_2 :  1,
+            unused_2 :  1, // ClearUI: persistent memory scan skip
             exclude :   1,
             scanlist :  8;
     };

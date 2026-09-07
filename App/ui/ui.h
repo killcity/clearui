@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -25,6 +26,12 @@ enum GUI_DisplayType_t
     DISPLAY_MAIN = 0,
     DISPLAY_MENU,
     DISPLAY_SCANNER,
+
+#ifdef ENABLE_CLEAR_UI
+    DISPLAY_CLEAR_MENU,
+    DISPLAY_QUICK,
+    DISPLAY_SCAN_GROUP,
+#endif
 
 #ifdef ENABLE_FMRADIO
     DISPLAY_FM,

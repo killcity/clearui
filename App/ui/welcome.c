@@ -1,3 +1,4 @@
+/* ClearUI modifications (2026): native startup logo. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -29,6 +30,9 @@
 #include "ui/status.h"
 #include "version.h"
 #include "bitmaps.h"
+#ifdef ENABLE_CLEAR_UI
+#include "ui/clearui.h"
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_K5VIEWER
     #include "k5viewer.h"
@@ -256,7 +260,11 @@ void UI_DisplayWelcome(void)
 #endif
 #ifdef ENABLE_FEAT_F4HWN_LOGO
     else if (gEeprom.POWER_ON_DISPLAY_MODE == POWER_ON_DISPLAY_MODE_LOGO) {
+#ifdef ENABLE_CLEAR_UI
+        UI_CLEARUI_RenderBootLogo();
+#else
         UI_LoadLogo();
+#endif
     }
 #endif
     else {

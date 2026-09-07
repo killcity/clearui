@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2025 muzkr https://github.com/muzkr
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -79,6 +80,11 @@ static const AddrMapping_t ADDR_MAPPINGS[] = {
                                                 // [0x08..0x407] 128x64 monochrome bitmap, 1024 Bytes
                                                 // ST7565-native: 8 pages * 128 columns, column-major LSB-top
 
+#ifdef ENABLE_CLEAR_UI
+    // Long list names, exposed through the 16-bit programming protocol.
+    _MK_MAPPING(0x012000, 0x00D000, 0x00D200),
+#endif
+
     // Not mapped, for documentation only (the EEPROM API uses 16-bit
     // addresses and could not reach a 32 KB window anyway):
     //
@@ -147,7 +153,7 @@ static void AddrTranslate(uint16_t EEPROM_Addr, uint16_t Size, uint32_t *PY25Q16
     *Size_out = Size;
     return;
 
-HIT:
+HIT:;
     const uint16_t Off = EEPROM_Addr - p->EEPROM_Addr;
     const uint16_t Rem = p->Size - Off;
     if (Size > Rem)

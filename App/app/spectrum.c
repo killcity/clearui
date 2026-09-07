@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 fagci
  * https://github.com/fagci
  *
@@ -30,6 +31,9 @@
 #include "frequencies.h"
 #include "ui/helper.h"
 #include "ui/main.h"
+#ifdef ENABLE_CLEAR_UI
+#include "ui/clearui.h"
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_K5VIEWER
 #include "k5viewer.h"
@@ -97,11 +101,30 @@ uint32_t fMeasure = 0;
 uint32_t currentFreq, tempFreq;
 uint16_t rssiHistory[128];
 
+#ifdef ENABLE_CLEAR_UI
+// One row per completed sweep. New samples enter at the top and scroll down.
+static uint8_t waterfallHistory[32][16];
+static uint8_t waterfallPhase;
+static bool scopeMenuOpen, scopeMenuChild, scopeMenuEatRelease;
+static uint8_t scopeMenuRow, scopeMenuChoice;
+static const char *const scopeMenuLabels[] = {
+    "Trigger mode", "Sweep step", "Sweep points", "Mode",
+    "Receive bandwidth", "Clear history", "Close scope"
+};
+
+static void ResetWaterfall(void)
+{
+    memset(waterfallHistory, 0, sizeof(waterfallHistory));
+    memset(rssiHistory, 0, sizeof(rssiHistory));
+    waterfallPhase = 0;
+}
+#else
 // Peak hold: tracks the highest Y per column with timed decay
 static uint8_t  peakHoldY[128];       // Peak Y value per display column (0=top)
 static uint8_t  peakHoldAge[64];      // Shared decay timer (1 per 2 columns)
 #define PEAK_HOLD_DELAY  15           // Sweeps before decay starts
 #define PEAK_HOLD_INIT   0xFF         // "no peak" sentinel (same as SPECTRUM_TOPY_SKIP)
+#endif
 
 // Cached REG_30 value for scan steps: avoids re-reading it on every SetFScan()
 // call (saves 1 SPI read per step = fewer SPI bus events = less SPI-induced audio interference).
@@ -759,8 +782,14 @@ static void RelaunchScan()
 #endif
     preventKeypress = true;
     scanInfo.rssiMin = RSSI_MAX_VALUE;
+#ifdef ENABLE_CLEAR_UI
+    // A relaunch can change the frequency span, step, or modulation. Retained
+    // rows would then label old samples with the new frequencies.
+    ResetWaterfall();
+#else
     memset(peakHoldY,   PEAK_HOLD_INIT, sizeof(peakHoldY));
     memset(peakHoldAge, 0,              sizeof(peakHoldAge));
+#endif
 
 }
 
@@ -914,8 +943,10 @@ static void RearmRuntimeState()
     settings.dbMin = -128;
     settings.dbMax = -97;
     memset(rssiHistory, 0, sizeof(rssiHistory));
+#ifndef ENABLE_CLEAR_UI
     memset(peakHoldY,   PEAK_HOLD_INIT, sizeof(peakHoldY));
     memset(peakHoldAge, 0,              sizeof(peakHoldAge));
+#endif
     rssiSmoothed = 0;
     manualDbMaxTimer = 0;
     
@@ -1311,13 +1342,13 @@ static bool IsRssiHistoryInvalid(uint16_t rssi)
 // occupy more of the display height while strong peaks are not clipped.
 uint8_t Rssi2PX(uint16_t rssi, uint8_t pxMin, uint8_t pxMax)
 {
-    const int DB_MIN = settings.dbMin << 1;
-    const int DB_MAX = settings.dbMax << 1;
+    const int DB_MIN = settings.dbMin * 2;
+    const int DB_MAX = settings.dbMax * 2;
     const int DB_RANGE = DB_MAX - DB_MIN;
 
     const uint8_t PX_RANGE = pxMax - pxMin;
 
-    int dbm = clamp(Rssi2DBm(rssi) << 1, DB_MIN, DB_MAX);
+    int dbm = clamp(Rssi2DBm(rssi) * 2, DB_MIN, DB_MAX);
 
     // Linear 0..PX_RANGE position
     uint8_t linear = (uint8_t)(((dbm - DB_MIN) * PX_RANGE + DB_RANGE / 2) / DB_RANGE);
@@ -1364,6 +1395,38 @@ static uint16_t InterpolateRssi(uint8_t bars, uint16_t pos256)
     return ((uint32_t)rssiA * (256 - frac) + (uint32_t)rssiB * frac) >> 8;
 }
 
+#ifdef ENABLE_CLEAR_UI
+static void WaterfallCaptureRow(void)
+{
+    const uint16_t steps = scanInfo.measurementsCount;
+    const uint8_t bars = steps > 128 ? 128 : steps;
+    if (!bars)
+        return;
+
+    memmove(waterfallHistory[1], waterfallHistory[0],
+            sizeof(waterfallHistory) - sizeof(waterfallHistory[0]));
+    memset(waterfallHistory[0], 0, sizeof(waterfallHistory[0]));
+    const uint16_t step256 = ((uint16_t)(bars - 1) << 8) / 127;
+    for (uint8_t x = 0; x < 128; ++x)
+    {
+        const uint16_t rssi = InterpolateRssi(bars, (uint16_t)x * step256);
+        // Ordered density dithering gives four strength levels on a 1-bit LCD.
+        const uint8_t threshold = ((x & 1) << 1) | ((x ^ waterfallPhase) & 1);
+        if (!IsRssiHistoryInvalid(rssi) && Rssi2PX(rssi, 0, 4) > threshold)
+            waterfallHistory[0][x >> 3] |= 1u << (x & 7);
+    }
+    ++waterfallPhase;
+    redrawScreen = true;
+}
+
+static void DrawWaterfall(void)
+{
+    for (uint8_t row = 0; row < 32; ++row)
+        for (uint8_t x = 0; x < 128; ++x)
+            if (waterfallHistory[row][x >> 3] & (1u << (x & 7)))
+                PutPixel(x, DrawingTopY + row, true);
+}
+#else
 // Sentinel value in topY[] to mark a column that should not be drawn
 // (blacklisted RSSI sample on both neighbours).
 #define SPECTRUM_TOPY_SKIP 0xFF
@@ -1544,6 +1607,7 @@ static void BuildCurrentSpectrumTopY(uint8_t *topY)
     if (!manualSetFlag)
         SmoothTopY(topY);
 }
+#endif
 
 static void DrawStatus()
 {
@@ -1605,7 +1669,8 @@ static void DrawStatus()
 static void ShowChannelName(uint32_t f)
 {
     static uint32_t channelF = 0;
-    static char channelName[12]; 
+    // The status strip has room for ten characters; the getter truncates safely.
+    static char channelName[11];
     f = NormalizeScanFrequency(f);
 
     // Channel name starts at x=43 (fixed), leaving room for the dBm
@@ -1625,7 +1690,7 @@ static void ShowChannelName(uint32_t f)
                 {
                     if (SETTINGS_FetchChannelFrequency(i) == channelF)
                     {
-                        SETTINGS_FetchChannelName(channelName, i);
+                        SETTINGS_FetchChannelName(channelName, i, sizeof(channelName));
                         break;
                     }
                 }
@@ -1654,8 +1719,10 @@ static void DrawF(uint32_t f)
 
     sprintf(String, "%3s", gModulationStr[settings.modulationType]);
     GUI_DisplaySmallest(String, 116, 1, false, true);
+#ifndef ENABLE_CLEAR_UI
     sprintf(String, "%4sk", bwOptions[settings.listenBw]);
     GUI_DisplaySmallest(String, 108, 7, false, true);
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_SPECTRUM
     ShowChannelName(f);
@@ -1667,14 +1734,20 @@ static void DrawNums()
 
     if (currentState == SPECTRUM)
     {
+#ifndef ENABLE_CLEAR_UI
 #ifdef ENABLE_SCAN_RANGES
         sprintf(String, "%ux", gScanRangeStart ? GetStepsCountDisplay() : GetStepsCount());
 #else
         sprintf(String, "%ux", GetStepsCount());
 #endif
         GUI_DisplaySmallest(String, 0, 1, false, true);
+#endif
         sprintf(String, "%u.%02uk", GetScanStep() / 100, GetScanStep() % 100);
+#ifdef ENABLE_CLEAR_UI
+        GUI_DisplaySmallest(String, 0, 1, false, true);
+#else
         GUI_DisplaySmallest(String, 0, 7, false, true);
+#endif
 
     }
 
@@ -1711,6 +1784,7 @@ static void DrawNums()
     }
 }
 
+#ifndef ENABLE_CLEAR_UI
 static bool SpectrumColumnAtOrAboveY(const uint8_t *topY, uint8_t x, uint8_t y)
 {
     int8_t start = (x > 0) ? -1 : 0;
@@ -1750,6 +1824,7 @@ static void DrawRssiTriggerLevel(const uint8_t *topY)
         PutPixel(x, y, true);
     }
 }
+#endif
 
 static void DrawTicks()
 {
@@ -1829,6 +1904,170 @@ static bool OnKeyDownCommon(uint8_t key) {
     return false;
 }
 
+#ifdef ENABLE_CLEAR_UI
+static void OnKeyDown(uint8_t key);
+
+static uint8_t ClearUIScopeItem(uint8_t row)
+{
+#ifdef ENABLE_SCAN_RANGES
+    // A configured frequency range determines the number of points itself.
+    if (gScanRangeStart && row >= 2) return row + 1;
+#endif
+    return row;
+}
+
+static uint8_t ClearUIScopeCount(void)
+{
+#ifdef ENABLE_SCAN_RANGES
+    return ARRAY_SIZE(scopeMenuLabels) - !!gScanRangeStart;
+#else
+    return ARRAY_SIZE(scopeMenuLabels);
+#endif
+}
+
+static uint8_t ClearUIScopeChoiceCount(uint8_t item)
+{
+    const uint8_t counts[] = {2, ARRAY_SIZE(scanStepValues), 4, MODULATION_UKNOWN, 3, 2, 0};
+    return counts[item];
+}
+
+static uint8_t ClearUIScopeCurrent(uint8_t item)
+{
+    switch (item) {
+    case 0: return manualSetFlag;
+    case 1: return settings.scanStepIndex;
+    case 2: return STEPS_16 - settings.stepsCount;
+    case 3: return settings.modulationType;
+    case 4: return settings.listenBw;
+    default: return 0;
+    }
+}
+
+static void ClearUIScopeOpen(void)
+{
+    scopeMenuOpen = true;
+    scopeMenuChild = false;
+    scopeMenuRow = 0;
+    menuKeyPendingShort = false;
+    // Long MENU opens too; its release must not select the first option.
+    scopeMenuEatRelease = kbd.current != KEY_INVALID;
+    redrawScreen = true;
+}
+
+static void ClearUIScopeClose(void)
+{
+    scopeMenuOpen = scopeMenuChild = false;
+    scopeMenuEatRelease = kbd.current != KEY_INVALID;
+    menuKeyPendingShort = false;
+    redrawScreen = redrawStatus = true;
+}
+
+static void ClearUIScopeApply(uint8_t item)
+{
+    switch (item) {
+    case 0:
+        manualSetFlag = scopeMenuChoice;
+        if (!manualSetFlag) settings.rssiTriggerLevel = RSSI_MAX_VALUE;
+        break;
+    case 1:
+        while (settings.scanStepIndex != scopeMenuChoice) UpdateScanStep(true);
+        break;
+    case 2:
+        while (settings.stepsCount != STEPS_16 - scopeMenuChoice) ToggleStepsCount();
+        break;
+    case 3:
+        while (settings.modulationType != scopeMenuChoice) ToggleModulation();
+        break;
+    case 4:
+        if (settings.listenBw != scopeMenuChoice) {
+            // Re-enter receive with the new filter; never leave old RX locked.
+            ToggleRX(false);
+            settings.listenBw = scopeMenuChoice;
+            RelaunchScan();
+        }
+        break;
+    case 5:
+        if (scopeMenuChoice) {
+            // Clear only visual history, not the sweep samples/trigger state.
+            memset(waterfallHistory, 0, sizeof(waterfallHistory));
+            waterfallPhase = 0;
+        }
+        break;
+    }
+    ClearUIScopeClose();
+}
+
+static void ClearUIScopeKey(KEY_Code_t key)
+{
+    const uint8_t item = ClearUIScopeItem(scopeMenuRow);
+    if (key == KEY_UP || key == KEY_DOWN) {
+        uint8_t *selection = scopeMenuChild ? &scopeMenuChoice : &scopeMenuRow;
+        const uint8_t count = scopeMenuChild ? ClearUIScopeChoiceCount(item) : ClearUIScopeCount();
+        *selection = key == KEY_UP ? (*selection ? *selection - 1 : count - 1) :
+                                   (*selection + 1) % count;
+        redrawScreen = true;
+    } else if (key == KEY_EXIT) {
+        if (scopeMenuChild) {scopeMenuChild = false; redrawScreen = true;}
+        else ClearUIScopeClose();
+    } else if (key == KEY_PTT) {
+        // Dismiss only; do not leak PTT through to the peak-listening shortcut.
+        ClearUIScopeClose();
+    } else if (key == KEY_MENU) {
+        if (scopeMenuChild) ClearUIScopeApply(item);
+        else if (ClearUIScopeChoiceCount(item)) {
+            scopeMenuChoice = ClearUIScopeCurrent(item);
+            scopeMenuChild = true;
+            redrawScreen = true;
+        } else {
+            ClearUIScopeClose();
+            OnKeyDown(KEY_EXIT);
+        }
+    }
+}
+
+static bool ClearUIScopeHandleKeys(void)
+{
+    if (scopeMenuEatRelease) {
+        if (kbd.current == KEY_INVALID) scopeMenuEatRelease = false;
+        return true;
+    }
+    if (!scopeMenuOpen) return false;
+    if (kbd.counter == 3 || (kbd.counter == 16 &&
+                            (kbd.current == KEY_UP || kbd.current == KEY_DOWN)))
+        ClearUIScopeKey(kbd.current);
+    return true;
+}
+
+static void ClearUIScopeRender(void)
+{
+    const uint8_t item = ClearUIScopeItem(scopeMenuRow);
+    const uint8_t count = scopeMenuChild ? ClearUIScopeChoiceCount(item) : ClearUIScopeCount();
+    const char *labels[ARRAY_SIZE(scanStepValues)];
+    char steps[ARRAY_SIZE(scanStepValues)][16];
+    const char *const trigger[] = {"Automatic", "Manual"};
+    const char *const points[] = {"16 points", "32 points", "64 points", "128 points"};
+    const char *const modes[] = {"FM", "AM", "USB"};
+    const char *const bandwidth[] = {"25 kHz", "12.5 kHz", "6.25 kHz"};
+    const char *const confirm[] = {"Cancel", "Clear history"};
+    for (uint8_t i = 0; i < count; i++) {
+        if (!scopeMenuChild) labels[i] = scopeMenuLabels[ClearUIScopeItem(i)];
+        else switch (item) {
+        case 0: labels[i] = trigger[i]; break;
+        case 1:
+            snprintf(steps[i], sizeof(steps[i]), "%u.%02u kHz",
+                     scanStepValues[i] / 100, scanStepValues[i] % 100);
+            labels[i] = steps[i]; break;
+        case 2: labels[i] = points[i]; break;
+        case 3: labels[i] = modes[i]; break;
+        case 4: labels[i] = bandwidth[i]; break;
+        default: labels[i] = confirm[i]; break;
+        }
+    }
+    UI_CLEARUI_DrawScopeMenu(scopeMenuChild ? scopeMenuLabels[item] : NULL,
+                            labels, count, scopeMenuChild ? scopeMenuChoice : scopeMenuRow);
+}
+#endif
+
 static void OnKeyDown(uint8_t key) {
     bool isTrue = (key == KEY_1 || key == KEY_2);
 
@@ -1878,11 +2117,15 @@ static void OnKeyDown(uint8_t key) {
         TuneToPeak();
         break;
     case KEY_MENU:
+#ifdef ENABLE_CLEAR_UI
+        ClearUIScopeOpen();
+#else
         // Short press toggles manual/auto.
         manualSetFlag = !manualSetFlag;
         if (!manualSetFlag)
             settings.rssiTriggerLevel = RSSI_MAX_VALUE;
         redrawStatus = true;
+#endif
         break;
     case KEY_EXIT:
         if (menuState)
@@ -1990,15 +2233,23 @@ static void RenderSpectrum()
 {
     uint16_t steps = GetStepsCount();
     uint8_t arrowX = (steps > 1) ? (uint8_t)(128u * peak.i / (steps - 1)) : 0;
+#ifdef ENABLE_CLEAR_UI
+    DrawWaterfall();
+#else
     uint8_t topY[128];
 
     BuildCurrentSpectrumTopY(topY);
+#endif
     DrawTicks();
     DrawArrow(arrowX);
+#ifndef ENABLE_CLEAR_UI
     DrawSpectrumCurve(topY);
+#endif
     DrawF(peak.f);
     DrawNums();
+#ifndef ENABLE_CLEAR_UI
     DrawRssiTriggerLevel(topY);
+#endif
 }
 
 static void RenderStill()
@@ -2112,6 +2363,9 @@ static void Render()
         break;
     }
 
+#ifdef ENABLE_CLEAR_UI
+    if (scopeMenuOpen) ClearUIScopeRender();
+#endif
     // Display blit is done incrementally (one page per tick) — see Tick().
 }
 
@@ -2133,6 +2387,9 @@ static bool HandleUserInput()
         kbd.counter = 0;
     }
 
+#ifdef ENABLE_CLEAR_UI
+    if (ClearUIScopeHandleKeys()) return true;
+#endif
     // Spectrum MENU key handling:
     // - short press => action on release
     // - long press  => one-shot at counter==16
@@ -2165,7 +2422,11 @@ static bool HandleUserInput()
             {
                 menuKeyPendingShort = false;
                 menuKeyLongHandled = true;
+#ifdef ENABLE_CLEAR_UI
+                ClearUIScopeOpen();
+#else
                 ResetSpectrumToDefaults();
+#endif
             }
             return true;
         }
@@ -2267,6 +2528,9 @@ static void FinalizeCompletedSweep()
     }
 
     // Next full sweep starts from the opposite side to avoid directional bias.
+#ifdef ENABLE_CLEAR_UI
+    WaterfallCaptureRow();
+#endif
     scanStartFromLeft = !scanStartFromLeft;
     newScanStart = true;
 }
@@ -2290,8 +2554,17 @@ static void UpdateScan()
         preventKeypress = false;
 
         UpdatePeakInfo();
-        if (IsPeakOverOpenLevel())
+        if (IsPeakOverOpenLevel()
+#ifdef ENABLE_CLEAR_UI
+            // Finish all phases before listening so the displayed row covers
+            // the entire span, including signals in later phases.
+            && interlacePhase + 1 >= interlaceStride
+#endif
+        )
         {
+#ifdef ENABLE_CLEAR_UI
+            WaterfallCaptureRow();
+#endif
             ToggleRX(true);
             TuneToPeak();
             return;
@@ -2321,6 +2594,11 @@ static void UpdateScan()
     UpdatePeakInfo();
     if (IsPeakOverOpenLevel())
     {
+#ifdef ENABLE_CLEAR_UI
+        // This half-sweep covers the full span. Preserve it while audio pauses
+        // sampling; repeating a row during listening would imply new samples.
+        WaterfallCaptureRow();
+#endif
         ToggleRX(true);
         TuneToPeak();
         return;
@@ -2552,6 +2830,11 @@ static void Tick()
 
 void APP_RunSpectrum()
 {
+#ifdef ENABLE_CLEAR_UI
+    scopeMenuOpen = scopeMenuChild = scopeMenuEatRelease = false;
+    scopeMenuRow = scopeMenuChoice = 0;
+    menuKeyPendingShort = menuKeyLongHandled = false;
+#endif
     settings.backlightState = gEeprom.BACKLIGHT_TIME == 0 ? false : true;
 
     // TX here coz it always? set to active VFO

@@ -1,0 +1,6 @@
+# Preserve upstream license/document/driver formatting verbatim. The generated
+# driver deliberately retains the upstream source's formatting for auditing.
+LICENSES/*.txt -whitespace
+README-UPSTREAM.md -whitespace
+chirp/upstream/*.py -whitespace
+chirp/fusion-clearui-chirp-c8.py -whitespace

@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -22,6 +23,9 @@
 #include "app/dtmf.h"
 #include "app/generic.h"
 #include "app/menu.h"
+#ifdef ENABLE_CLEAR_UI
+#include "app/clearui.h"
+#endif
 #include "app/scanner.h"
 #include "audio.h"
 #include "board.h"
@@ -44,6 +48,12 @@
 
 
 uint8_t gUnlockAllTxConfCnt;
+
+#ifdef ENABLE_CLEAR_UI
+#define MENU_NAME_LENGTH 16
+#else
+#define MENU_NAME_LENGTH 10
+#endif
 
 #ifdef ENABLE_F_CAL_MENU
     void writeXtalFreqCal(const int32_t value, const bool update_eeprom)
@@ -763,7 +773,11 @@ void MENU_AcceptSetting(void)
             break;
 
         case MENU_S_LIST:
+#ifdef ENABLE_CLEAR_UI
+            CLEARUI_SelectGroup(gSubMenuSelection);
+#else
             gEeprom.SCAN_LIST_DEFAULT = gSubMenuSelection;
+#endif
             break;
 
         case MENU_S_PRI:
@@ -1275,7 +1289,11 @@ void MENU_ShowCurrentSetting(void)
             break;
 
         case MENU_S_LIST:
+#ifdef ENABLE_CLEAR_UI
+            gSubMenuSelection = CLEARUI_GetGroup(gEeprom.TX_VFO);
+#else
             gSubMenuSelection = gEeprom.SCAN_LIST_DEFAULT;
+#endif
             break;
 
         case MENU_S_PRI:
@@ -1561,7 +1579,7 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
     if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && edit_index >= 0)
     {   // currently editing the channel name
-        if (edit_index >= 10)
+        if (edit_index >= MENU_NAME_LENGTH)
             return;
 
         uint8_t key_idx = Key - KEY_0;
@@ -1776,6 +1794,18 @@ static void MENU_Key_0_to_9(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
     gBeepToPlay = BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL;
 }
 
+#ifdef ENABLE_CLEAR_UI
+static bool MENU_ReturnToClearUI(void)
+{
+    if (!gClearUIEditorActive || gIsInSubMenu)
+        return false;
+    gClearUIEditorActive = gClearUIEditorReturnDisplay == DISPLAY_MENU;
+    gClearUIIgnoreNextRelease = gClearUIEditorReturnDisplay != DISPLAY_MENU;
+    gRequestDisplayScreen = (GUI_DisplayType_t)gClearUIEditorReturnDisplay;
+    return true;
+}
+#endif
+
 static void MENU_Key_EXIT(bool bKeyPressed, bool bKeyHeld)
 {
     if (MENU_IsEditingName())
@@ -1822,6 +1852,10 @@ Skip:
 
         gRequestDisplayScreen = DISPLAY_MENU;
 
+#ifdef ENABLE_CLEAR_UI
+        MENU_ReturnToClearUI();
+#endif
+
         return;
     }
 
@@ -1851,7 +1885,13 @@ Skip:
             return;
         }
 
-#ifdef ENABLE_FEAT_F4HWN_MENU_CAT
+#ifdef ENABLE_CLEAR_UI
+        if (gClearUIEditorReturnDisplay == DISPLAY_MENU)
+            gClearUIEditorReturnDisplay = DISPLAY_CLEAR_MENU;
+        if (MENU_ReturnToClearUI())
+            return;
+#endif
+#if defined(ENABLE_FEAT_F4HWN_MENU_CAT) && !defined(ENABLE_CLEAR_UI)
         if (gMenuLevel == MENU_LEVEL_ITEMS)
         {   // remonter aux categories au lieu de quitter le menu
             gCatLastPos[gMenuCategory] = gMenuCursor;   // memorise la position dans la categorie
@@ -1955,14 +1995,14 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
             if (!RADIO_CheckValidChannel(gSubMenuSelection, false, 0))
                 return;
 
-            SETTINGS_FetchChannelName(edit, gSubMenuSelection);
+            SETTINGS_FetchChannelName(edit, gSubMenuSelection, sizeof(edit));
 
             // pad the channel name out with ' '
             size_t len = strlen(edit);
-            if (len < 10)
+            if (len < MENU_NAME_LENGTH)
             {
-                memset(edit + len, ' ', 10 - len);
-                edit[10] = '\0';
+                memset(edit + len, ' ', MENU_NAME_LENGTH - len);
+                edit[MENU_NAME_LENGTH] = '\0';
             }
 
             edit_index = 0;  // 'edit_index' is going to be used as the cursor position
@@ -1976,14 +2016,14 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
             return;
         }
         else
-        if (edit_index >= 0 && edit_index < 10)
+        if (edit_index >= 0 && edit_index < MENU_NAME_LENGTH)
         {   // editing the channel name characters
             edit_last_key = 255;
 
             if (bKeyHeld) {
-                edit_index = 10;
+                edit_index = MENU_NAME_LENGTH;
             }
-            else if (++edit_index < 10) {
+            else if (++edit_index < MENU_NAME_LENGTH) {
                 return;
             }
 
@@ -2057,6 +2097,9 @@ static void MENU_Key_MENU(const bool bKeyPressed, const bool bKeyHeld)
     #endif
 
     gInputBoxIndex = 0;
+#ifdef ENABLE_CLEAR_UI
+    MENU_ReturnToClearUI();
+#endif
 }
 
 static void MENU_Key_STAR(const bool bKeyPressed, const bool bKeyHeld)
@@ -2069,7 +2112,7 @@ static void MENU_Key_STAR(const bool bKeyPressed, const bool bKeyHeld)
     if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && edit_index >= 0)
     {   // currently editing the channel name
 
-        if (edit_index < 10)
+        if (edit_index < MENU_NAME_LENGTH)
         {
             edit[edit_index] = !bKeyHeld ? '-' : '*';
             edit_last_key = 255;
@@ -2131,13 +2174,19 @@ static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
     }
 #endif
 
+#ifdef ENABLE_CLEAR_UI
+    // Choices are now top-to-bottom lists, not the legacy scalar editor.
+    // KEY_DOWN (right on UV-K1) advances, just like every other ClearUI list.
+    if (gIsInSubMenu) Direction = -Direction;
+#else
     if (!gEeprom.SET_NAV && gIsInSubMenu) {
         Direction = -Direction;
     }
+#endif
 
     if (UI_MENU_GetCurrentMenuId() == MENU_MEM_NAME && gIsInSubMenu && edit_index >= 0)
     {   // change the character
-        if (edit_index < 10 && Direction != 0)
+        if (edit_index < MENU_NAME_LENGTH && Direction != 0)
         {
             const char   unwanted[] = "$%&!\"':;?^`|{}_";
             char         c          = edit[edit_index] + Direction;
@@ -2267,6 +2316,12 @@ static void MENU_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
 
 void MENU_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (gClearUIEditorActive && gClearUIIgnoreNextRelease) {
+        if (!bKeyPressed) gClearUIIgnoreNextRelease = false;
+        return;
+    }
+#endif
     switch (Key)
     {
         case KEY_0...KEY_9:
@@ -2293,7 +2348,7 @@ void MENU_ProcessKeys(KEY_Code_t Key, bool bKeyPressed, bool bKeyHeld)
 
                 gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
 
-                if (edit_index < 10)
+                if (edit_index < MENU_NAME_LENGTH)
                 {
                     if (bKeyHeld)
                         edit[edit_index] = '#';

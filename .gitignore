@@ -17,3 +17,15 @@ __pycache__/
 
 .DS_Store
 AGENTS.md
+
+# ClearUI publication hygiene: personal radio backups and credentials.
+*.img
+*.heic
+*.HEIC
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+/dist/
+/.venv/

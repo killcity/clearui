@@ -1,4 +1,4 @@
-
+# ClearUI modifications (2026): UI sources and feature definitions.
 add_library(App INTERFACE)
 target_include_directories(App INTERFACE .)
 target_link_libraries(App INTERFACE PY32F071_Driver)
@@ -234,6 +234,14 @@ enable_feature(ENABLE_FEAT_F4HWN_QRCODE)
 enable_feature(ENABLE_FEAT_F4HWN_LOGO)
 enable_feature(ENABLE_FEAT_F4HWN_LOGO_SAV)
 enable_feature(ENABLE_FEAT_F4HWN_MENU_CAT)
+enable_feature(ENABLE_CLEAR_UI
+    clearui_font.c
+    ui/clearui_text.c
+    app/clearui.c
+    app/clearui_groups.c
+    ui/clearui.c
+    ui/clearui_main.c
+)
 
 if(ENABLE_FEAT_F4HWN_LOGO_SAV AND NOT ENABLE_FEAT_F4HWN_LOGO)
     message(FATAL_ERROR "ENABLE_FEAT_F4HWN_LOGO_SAV requires ENABLE_FEAT_F4HWN_LOGO.")

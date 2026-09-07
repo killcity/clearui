@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2025 muzkr https://github.com/muzkr
  * Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
@@ -377,7 +378,11 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
 
     //gSetting_TX_EN             = (Data[7] & (1u << 0)) ? true : false;
     gSetting_live_DTMF_decoder = !!(Data[7] & (1u << 1));
+#ifdef ENABLE_CLEAR_UI
+    gSetting_battery_text      = (Data[7] >> 2) & 3u;
+#else
     gSetting_battery_text      = (((Data[7] >> 2) & 3u) <= 2) ? (Data[7] >> 2) & 3 : 2;
+#endif
     #ifdef ENABLE_AUDIO_BAR
         gSetting_mic_bar       = !!(Data[7] & (1u << 4));
     #endif
@@ -633,6 +638,9 @@ bool SETTINGS_FetchChannelScanDisplayInfo(const uint16_t channel, ChannelScanDis
         return false;
 
     memset(info, 0, sizeof(*info));
+#ifdef ENABLE_CLEAR_UI
+    info->receiveOnly = raw.data[7] == CLEARUI_RECEIVE_ONLY_MARKER;
+#endif
 
     info->rx.Frequency = raw.frequency;
     info->tx.Frequency = raw.frequency;
@@ -708,25 +716,29 @@ bool SETTINGS_FetchChannelScanDisplayInfo(const uint16_t channel, ChannelScanDis
     return true;
 }
 
-void SETTINGS_FetchChannelName(char *s, const uint16_t channel)
+void SETTINGS_FetchChannelName(char *s, const uint16_t channel, uint8_t capacity)
 {
-    if (s == NULL)
+    if (s == NULL || capacity == 0)
         return;
 
     s[0] = 0;
 
-    if (channel < 0)
+    if (capacity == 1)
         return;
 
     if (!RADIO_CheckValidChannel(channel, false, 0))
         return;
 
-    // 0x0F50
-    PY25Q16_ReadBuffer(0x004000 + (channel * 16), s, 10);
+#ifdef ENABLE_CLEAR_UI
+    const uint8_t length = MIN(capacity - 1u, 16u);
+#else
+    const uint8_t length = MIN(capacity - 1u, 10u);
+#endif
+    PY25Q16_ReadBuffer(0x004000 + (channel * 16), s, length);
 
     int i;
-    for (i = 0; i < 10; i++)
-        if (s[i] < 32 || s[i] > 127)
+    for (i = 0; i < length; i++)
+        if ((uint8_t)s[i] < 32 || (uint8_t)s[i] > 126)
             break;                // invalid char
 
     s[i--] = 0;                   // null term
@@ -751,6 +763,9 @@ void SETTINGS_FactoryReset(bool bIsAll)
     for (uint32_t addr = 0x000000; addr <= 0x009000; addr += 0x1000) {
         PY25Q16_SectorErase(addr);
     }
+#ifdef ENABLE_CLEAR_UI
+    PY25Q16_SectorErase(0x012000);
+#endif
     
     // 0d60 - 0e30
     if (bIsAll)
@@ -1202,7 +1217,9 @@ void SETTINGS_SaveChannel(uint16_t Channel, uint8_t VFO, const VFO_Info_t *pVFO,
 #endif
         ;
         State -> _8[6] =  pVFO->STEP_SETTING;
-#ifdef ENABLE_FEAT_F4HWN
+#if defined(ENABLE_CLEAR_UI)
+        State -> _8[7] = pVFO->RECEIVE_ONLY ? CLEARUI_RECEIVE_ONLY_MARKER : 0;
+#elif defined(ENABLE_FEAT_F4HWN)
         State -> _8[7] =  0;
 #else
         State -> _8[7] =  pVFO->SCRAMBLING_TYPE;
@@ -1236,7 +1253,11 @@ void SETTINGS_SaveChannelName(uint16_t channel, const char * name)
 {
     uint16_t offset = channel * 16;
     uint8_t buf[16] = {0};
+#ifdef ENABLE_CLEAR_UI
+    memcpy(buf, name, MIN(strlen(name), sizeof(buf)));
+#else
     memcpy(buf, name, MIN(strlen(name), 10u));
+#endif
     // 0x0F50
     PY25Q16_WriteBuffer(0x004000 + offset, buf, 0x10, false);
 }
@@ -1258,6 +1279,10 @@ void SETTINGS_UpdateChannel(uint16_t channel, const VFO_Info_t *pVFO, bool keep)
     };
 
     if (keep) {
+#ifdef ENABLE_CLEAR_UI
+        if (IS_MR_CHANNEL(channel))
+            att.unused_2 = MR_GetChannelAttributes(channel)->unused_2;
+#endif
         att.band = pVFO->Band;
         att.compander = pVFO->Compander;
         att.scanlist = pVFO->SCANLIST_PARTICIPATION;

@@ -1,3 +1,4 @@
+# ClearUI modifications (2026): optional ClearUI build layer.
 cmake_minimum_required(VERSION 3.22)
 
 set(CMAKE_C_STANDARD 11)
@@ -20,6 +21,7 @@ message("Build type: " ${CMAKE_BUILD_TYPE})
 enable_language(C ASM)
 
 option(DEV "Prepare the rolling Fusion development firmware" OFF)
+option(ENABLE_CLEAR_UI "Build the ClearUI interaction and display layer" OFF)
 
 find_package(Git QUIET)
 set(BUILD_COMMIT "unknown")

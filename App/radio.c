@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -19,6 +20,9 @@
 
 #include "am_fix.h"
 #include "app/dtmf.h"
+#ifdef ENABLE_CLEAR_UI
+#include "app/clearui.h"
+#endif
 #ifdef ENABLE_FEAT_F4HWN_RXTX_LOG
     #include "app/rxtx_log.h"
 #endif
@@ -123,12 +127,22 @@ const char gModulationStr[MODULATION_UKNOWN][4] = {
 
 bool RADIO_CheckValidList(uint8_t scanList)
 {
+#ifndef ENABLE_CLEAR_UI
     if(scanList == MR_CHANNELS_LIST + 1)
         return true;
+#endif
 
     for (uint16_t i = 0; IS_MR_CHANNEL(i); i++) {
         const ChannelAttributes_t* att = MR_GetChannelAttributes(i);
-        if(att->scanlist == scanList && att->exclude == false)
+#ifdef ENABLE_CLEAR_UI
+        if (scanList >= 1 && scanList <= MR_CHANNELS_LIST + 1 &&
+            att->band <= BAND7_470MHz && !att->exclude && !att->unused_2 &&
+            (scanList == MR_CHANNELS_LIST + 1 || att->scanlist == scanList ||
+             att->scanlist == MR_CHANNELS_LIST + 1)
+#else
+        if(att->scanlist == scanList && att->exclude == false
+#endif
+        )
         {
             return true;
         }
@@ -165,16 +179,25 @@ void RADIO_NextValidList(int8_t direction)
 
 bool RADIO_CheckValidChannel(uint16_t channel, bool checkScanList, uint8_t scanList)
 {
-    const ChannelAttributes_t* att = MR_GetChannelAttributes(channel);
-
     // return true if the channel appears valid
     if (!IS_MR_CHANNEL(channel))
         return false;
+    const ChannelAttributes_t* att = MR_GetChannelAttributes(channel);
     if (checkScanList && att->exclude == true)
         return false;
+#ifdef ENABLE_CLEAR_UI
+    // Bit 6 stores a persistent skip, independent of temporary exclusions.
+    if (checkScanList && att->unused_2)
+        return false;
+#endif
     if (att->band > BAND7_470MHz)
         return false;
+#ifdef ENABLE_CLEAR_UI
+    if (!checkScanList || (scanList == MR_CHANNELS_LIST + 1) ||
+        (scanList > 0 && scanList <= MR_CHANNELS_LIST && att->scanlist == MR_CHANNELS_LIST + 1))
+#else
     if (!checkScanList || (scanList > MR_CHANNELS_LIST && att->scanlist != 0) || (scanList > 0 && att->scanlist == MR_CHANNELS_LIST + 1))
+#endif
         return true;
     if ((scanList == 0) || (scanList != att->scanlist)) {
         return false;
@@ -285,7 +308,12 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 #endif
 
         if (IS_MR_CHANNEL(channel)) {
+#ifdef ENABLE_CLEAR_UI
+            channel = CLEARUI_FindGroupChannel(channel, RADIO_CHANNEL_UP,
+                                               CLEARUI_GetGroup(VFO));
+#else
             channel = RADIO_FindNextChannel(channel, RADIO_CHANNEL_UP, false, VFO);
+#endif
             if (channel == 0xFFFF) {
                 channel                    = gEeprom.FreqChannel[VFO];
                 gEeprom.ScreenChannel[VFO] = gEeprom.FreqChannel[VFO];
@@ -344,6 +372,9 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
         // ***************
 
         PY25Q16_ReadBuffer(base + 8, data, sizeof(data));
+#ifdef ENABLE_CLEAR_UI
+        pVfo->RECEIVE_ONLY = data[7] == CLEARUI_RECEIVE_ONLY_MARKER;
+#endif
 
         tmp = data[3] & 0x0F;
         if (tmp > TX_OFFSET_FREQUENCY_DIRECTION_SUB)
@@ -452,7 +483,7 @@ void RADIO_ConfigureChannel(const unsigned int VFO, const unsigned int configure
 
     if (IS_MR_CHANNEL(channel))
     {   // 16 bytes allocated to the channel name but only 10 used, the rest are 0's
-        SETTINGS_FetchChannelName(pVfo->Name, channel);
+        SETTINGS_FetchChannelName(pVfo->Name, channel, sizeof(pVfo->Name));
     }
 
     if (!pVfo->FrequencyReverse)
@@ -969,8 +1000,25 @@ void RADIO_SetupRegisters(bool switchToForeground)
     }
 #endif
 
+#ifdef ENABLE_CLEAR_UI
+static bool RADIO_BlockReceiveOnly(void)
+{
+    if (!gCurrentVfo->RECEIVE_ONLY)
+        return false;
+    // Also guard direct TX setup callers (tone, beam, and menu paths).
+    BK4819_SetupPowerAmplifier(0, 0);
+    BK4819_ToggleGpioOut(BK4819_GPIO1_PIN29_PA_ENABLE, false);
+    RADIO_SetVfoState(VFO_STATE_TX_DISABLE);
+    return true;
+}
+#endif
+
 void RADIO_SetTxParameters(void)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (RADIO_BlockReceiveOnly())
+        return;
+#endif
     BK4819_FilterBandwidth_t Bandwidth = gCurrentVfo->CHANNEL_BANDWIDTH;
 
     #ifdef ENABLE_FEAT_F4HWN_NARROWER
@@ -1204,6 +1252,14 @@ void RADIO_PrepareTX(void)
     }
 
     RADIO_SelectCurrentVfo();
+
+#ifdef ENABLE_CLEAR_UI
+    if (RADIO_BlockReceiveOnly())
+    {
+        AUDIO_PlayBeep(BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL);
+        return;
+    }
+#endif
 
     if(TX_freq_check(gCurrentVfo->pTX->Frequency) != 0
 #ifdef ENABLE_FEAT_F4HWN

@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -17,6 +18,9 @@
 #include <string.h>
 
 #include "app/app.h"
+#ifdef ENABLE_CLEAR_UI
+#include "app/clearui.h"
+#endif
 #include "app/chFrScanner.h"
 #ifdef ENABLE_FEAT_F4HWN_RXTX_LOG
 #include "app/rxtx_log.h"
@@ -57,6 +61,15 @@ static void convertTime(uint8_t *line, uint8_t type)
 void UI_DisplayStatus()
 {
     gUpdateStatus = false;
+
+#ifdef ENABLE_CLEAR_UI
+    if (gScreenToDisplay == DISPLAY_MAIN ||
+        gScreenToDisplay == DISPLAY_QUICK ||
+        gScreenToDisplay == DISPLAY_CLEAR_MENU ||
+        gScreenToDisplay == DISPLAY_SCAN_GROUP ||
+        (gScreenToDisplay == DISPLAY_MENU && gClearUIEditorActive))
+        return;
+#endif
 
     if (APP_IsScreenSaverDisplayed())
         return;

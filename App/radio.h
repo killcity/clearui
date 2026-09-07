@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -130,8 +131,18 @@ typedef struct VFO_Info_t
 
     uint8_t        Compander;
 
+#ifdef ENABLE_CLEAR_UI
+    bool           RECEIVE_ONLY;
+    char           Name[17]; // 16-byte flash name plus an in-memory terminator
+#else
     char           Name[16];
+#endif
 } VFO_Info_t;
+
+#ifdef ENABLE_CLEAR_UI
+// Former unused channel byte 15; zero/erased legacy records are unchanged.
+#define CLEARUI_RECEIVE_ONLY_MARKER 0xA5u
+#endif
 
 // Settings of the main VFO that is selected by the user
 // The pointer follows gEeprom.TX_VFO index

@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -169,6 +170,11 @@ enum CHANNEL_DisplayMode_t {
     MDF_NAME_FREQ
 };
 typedef enum CHANNEL_DisplayMode_t CHANNEL_DisplayMode_t;
+#ifdef ENABLE_CLEAR_UI
+// ClearUI uses the old number-only slot for frequency emphasis; other saved
+// values remain frequency=0, name=2 and name+frequency=3.
+#define MDF_FREQ_NAME MDF_CHANNEL
+#endif
 
 typedef struct {
     uint16_t               ScreenChannel[2]; // current channels set in the radio (memory or frequency channels)
@@ -327,6 +333,9 @@ typedef struct {
     uint8_t          channelBandwidth;
     uint8_t          busyChannelLock;
     uint8_t          txLock;
+#ifdef ENABLE_CLEAR_UI
+    bool             receiveOnly;
+#endif
 #ifdef ENABLE_DTMF_CALLING
     uint8_t          dtmfDecodingEnable;
 #endif
@@ -338,7 +347,7 @@ void     SETTINGS_LoadCalibration(void);
 uint32_t SETTINGS_FetchChannelFrequency(const uint16_t channel);
 bool     SETTINGS_FetchChannelScanInfo(const uint16_t channel, uint32_t *frequency, ModulationMode_t *modulation);
 bool     SETTINGS_FetchChannelScanDisplayInfo(const uint16_t channel, ChannelScanDisplayInfo_t *info);
-void     SETTINGS_FetchChannelName(char *s, const uint16_t channel);
+void     SETTINGS_FetchChannelName(char *s, const uint16_t channel, uint8_t capacity);
 void     SETTINGS_FactoryReset(bool bIsAll);
 #ifdef ENABLE_FMRADIO
     void SETTINGS_SaveFM(void);

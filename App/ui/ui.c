@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -19,6 +20,9 @@
 
 #include "app/chFrScanner.h"
 #include "app/dtmf.h"
+#ifdef ENABLE_CLEAR_UI
+    #include "app/clearui.h"
+#endif
 #ifdef ENABLE_FMRADIO
     #include "app/fm.h"
 #endif
@@ -34,6 +38,9 @@
     #include "app/rxtx_log.h"
 #endif
 #include "ui/inputbox.h"
+#ifdef ENABLE_CLEAR_UI
+    #include "ui/clearui.h"
+#endif
 #include "ui/main.h"
 #include "ui/menu.h"
 #include "ui/scanner.h"
@@ -49,9 +56,19 @@ bool              gAskToDelete;
 
 
 void (*const UI_DisplayFunctions[])(void) = {
+#ifdef ENABLE_CLEAR_UI
+    [DISPLAY_MAIN] = &UI_DisplayClearUIMain,
+#else
     [DISPLAY_MAIN] = &UI_DisplayMain,
+#endif
     [DISPLAY_MENU] = &UI_DisplayMenu,
     [DISPLAY_SCANNER] = &UI_DisplayScanner,
+
+#ifdef ENABLE_CLEAR_UI
+    [DISPLAY_CLEAR_MENU] = &UI_DisplayClearUIMenu,
+    [DISPLAY_QUICK] = &UI_DisplayClearUIQuick,
+    [DISPLAY_SCAN_GROUP] = &UI_DisplayClearUIScanGroup,
+#endif
 
 #ifdef ENABLE_FMRADIO
     [DISPLAY_FM] = &UI_DisplayFM,
@@ -82,12 +99,24 @@ void GUI_SelectNextDisplay(GUI_DisplayType_t Display)
 
     if (gScreenToDisplay != Display)
     {
+#ifdef ENABLE_CLEAR_UI
+        if (Display != DISPLAY_MAIN)
+            gClearUINumericEntry = false;
+        const bool preserveClearUIScan = gScanStateDir != SCAN_OFF &&
+            (gScreenToDisplay == DISPLAY_MAIN ||
+             gScreenToDisplay == DISPLAY_QUICK) &&
+            (Display == DISPLAY_MAIN || Display == DISPLAY_QUICK);
+#endif
+
         DTMF_clear_input_box();
 
         gInputBoxIndex       = 0;
         gIsInSubMenu         = false;
         gCssBackgroundScan   = false;
-        gScanStateDir        = SCAN_OFF;
+#ifdef ENABLE_CLEAR_UI
+        if (!preserveClearUIScan)
+#endif
+            gScanStateDir    = SCAN_OFF;
         #ifdef ENABLE_FMRADIO
             gFM_ScanState    = FM_SCAN_OFF;
         #endif
@@ -96,6 +125,14 @@ void GUI_SelectNextDisplay(GUI_DisplayType_t Display)
         gAskToDelete         = false;
 
         HideFKeyIcon();
+
+#ifdef ENABLE_CLEAR_UI
+        if (Display == DISPLAY_MENU && gClearUIPendingEditor)
+        {
+            gIsInSubMenu          = true;
+            gClearUIPendingEditor = false;
+        }
+#endif
     }
 
     gScreenToDisplay = Display;

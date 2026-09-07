@@ -37,6 +37,11 @@ others:
 Project-specific derived components
 -----------------------------------
 
+ClearUI modifications (2026): display and menu redesign, named-group browsing,
+extended programming support, receive-only guards, fonts and host tests.
+ClearUI is an independent derivative, not an official F4HWN release.
+The separately distributed CHIRP module is GPL-2.0-or-later; see chirp/COPYING.
+
 The spectrum analyzer implementation includes work originally developed
 by fagci:
 

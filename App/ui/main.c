@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -45,6 +46,9 @@
 #include "ui/inputbox.h"
 #include "ui/main.h"
 #include "ui/ui.h"
+#ifdef ENABLE_CLEAR_UI
+    #include "ui/clearui.h"
+#endif
 #include "audio.h"
 #include "menu.h"
 
@@ -1234,18 +1238,23 @@ void UI_MAIN_PrintAGC(bool now)
 
 void UI_MAIN_TimeSlice500ms(void)
 {
+#ifdef ENABLE_CLEAR_UI
+    UI_CLEARUI_TimeSlice500ms();
+#endif
     if(gScreenToDisplay==DISPLAY_MAIN) {
 #ifdef ENABLE_FEAT_F4HWN_SCAN_PROGRESS
         if (gScanListNameCountdown_500ms > 0 && --gScanListNameCountdown_500ms == 0)
             gUpdateDisplay = true;
 #endif
-#ifdef ENABLE_AGC_SHOW_DATA
+#if defined(ENABLE_AGC_SHOW_DATA) && !defined(ENABLE_CLEAR_UI)
         UI_MAIN_PrintAGC(true);
         return;
 #endif
 
         if(FUNCTION_IsRx()) {
+#ifndef ENABLE_CLEAR_UI
             DisplayRSSIBar(true);
+#endif
         }
 #ifdef ENABLE_FEAT_F4HWN // Blink Green Led for white...
         else if(gSetting_set_eot > 0 && RxBlinkLed == 2)
@@ -1344,6 +1353,9 @@ static void UI_PrintActionPickerLabel(uint8_t index, uint8_t line, bool big)
 
 void UI_DisplayMain(void)
 {
+#ifdef ENABLE_CLEAR_UI
+    UI_DisplayClearUIMain();
+#else
     char               String[22];
 
     center_line = CENTER_LINE_NONE;
@@ -1873,7 +1885,7 @@ void UI_DisplayMain(void)
                     case MDF_NAME:      // show the channel name
                     case MDF_NAME_FREQ: // show the channel name and frequency
 
-                        SETTINGS_FetchChannelName(String, gEeprom.ScreenChannel[vfo_num]);
+                        SETTINGS_FetchChannelName(String, gEeprom.ScreenChannel[vfo_num], sizeof(String));
                         if (String[0] == 0)
                         {   // no channel name, show the channel number instead
                             sprintf(String, "CH-%04u", gEeprom.ScreenChannel[vfo_num] + 1);
@@ -2487,4 +2499,5 @@ void UI_DisplayMain(void)
 #endif
 
     ST7565_BlitFullScreen();
+#endif
 }

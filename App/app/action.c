@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2023 Dual Tachyon
  * https://github.com/DualTachyon
  *
@@ -21,6 +22,9 @@
 #include "app/app.h"
 #include "app/chFrScanner.h"
 #include "app/common.h"
+#ifdef ENABLE_CLEAR_UI
+#include "app/clearui.h"
+#endif
 #include "app/dtmf.h"
 #ifdef ENABLE_FLASHLIGHT
     #include "app/flashlight.h"
@@ -252,6 +256,9 @@ void ACTION_Scan(bool bRestart)
 
         // channel mode. Keep scanning but toggle between scan lists
         RADIO_NextValidList(1);
+#ifdef ENABLE_CLEAR_UI
+        CLEARUI_SelectGroup(gEeprom.SCAN_LIST_DEFAULT);
+#endif
         UI_MAIN_NotifyScanListChanged();
 
         #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
@@ -280,8 +287,10 @@ void ACTION_Scan(bool bRestart)
         AUDIO_PlaySingleVoice(true);
 #endif
 
-        // clear the other vfo's rssi level (to hide the antenna symbol)
+#ifndef ENABLE_CLEAR_UI
+        // The stock display presents only one live RSSI value.
         gVFO_RSSI_bar_level[(gEeprom.RX_VFO + 1) & 1U] = 0;
+#endif
 
         // let the user see DW is not active
         gDualWatchActive = false;

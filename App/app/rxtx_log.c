@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2026
  *
  * Licensed under the Apache License, Version 2.0.
@@ -797,7 +798,7 @@ static void RXTX_LOG_SetK5ViewerChannelName(RXTX_LogK5ViewerRow_t *row, uint16_t
         return;
 
     char name[RXTX_LOG_K5VIEWER_NAME_LENGTH + 1u];
-    SETTINGS_FetchChannelName(name, channel);
+    SETTINGS_FetchChannelName(name, channel, sizeof(name));
     for (uint8_t i = 0; i < RXTX_LOG_K5VIEWER_NAME_LENGTH && name[i] != 0; i++)
         row->channelName[i] = name[i];
 }
@@ -1242,12 +1243,12 @@ static void RXTX_LOG_FormatFrequency(uint32_t frequency, char *buffer)
     sprintf(buffer, "%u.%05u", frequency / 100000u, frequency % 100000u);
 }
 
-static void RXTX_LOG_FormatTitle(const RXTX_LogEntry_t *entry, char *buffer)
+static void RXTX_LOG_FormatTitle(const RXTX_LogEntry_t *entry, char *buffer, uint8_t capacity)
 {
     buffer[0] = 0;
 
     if (entry->channel != RXTX_LOG_CHANNEL_NONE)
-        SETTINGS_FetchChannelName(buffer, entry->channel);
+        SETTINGS_FetchChannelName(buffer, entry->channel, capacity);
 
     if (buffer[0] == 0)
         RXTX_LOG_FormatFrequency(entry->frequency, buffer);
@@ -1293,7 +1294,7 @@ static void RXTX_LOG_ShowClearConfirm(void)
 void UI_DisplayRxTxLog(void)
 {
     char detail[8];
-    char title[16];
+    char title[17];
     RXTX_LogEntry_t entry;
 
     UI_DisplayClear();
@@ -1341,7 +1342,7 @@ void UI_DisplayRxTxLog(void)
 
         const bool isTx = RXTX_LOG_IsTx(&entry);
 
-        RXTX_LOG_FormatTitle(&entry, title);
+        RXTX_LOG_FormatTitle(&entry, title, sizeof(title));
         RXTX_LOG_DrawIndexBadge((uint16_t)(gNextTrafficSequence - 1u - entry.trafficSeq), row);
 
         if (isTx)

@@ -1,3 +1,4 @@
+/* ClearUI C1 modifications (2026): display, interaction and programming support. */
 /* Copyright 2026 Armel F4HWN
  * https://github.com/armel
  *
@@ -102,6 +103,14 @@ static void BEAM_SendPacket(void)
 
     payload->magic = BEAM_PACKET_MAGIC;
     payload->version = BEAM_PACKET_VERSION;
+#ifdef ENABLE_CLEAR_UI
+    // Older receivers reject v3 rather than silently dropping RX-only status.
+    if (vfo->RECEIVE_ONLY)
+    {
+        payload->version = 3;
+        payload->_pad = CLEARUI_RECEIVE_ONLY_MARKER;
+    }
+#endif
     payload->rx_frequency = vfo->freq_config_RX.Frequency;
     payload->tx_offset_frequency = vfo->TX_OFFSET_FREQUENCY;
     payload->rx_code = vfo->freq_config_RX.Code;
@@ -126,9 +135,16 @@ static void BEAM_SendPacket(void)
     payload->compander = vfo->Compander;
 
     if (IS_MR_CHANNEL(vfo->CHANNEL_SAVE)) {
-        SETTINGS_FetchChannelName(payload->name, vfo->CHANNEL_SAVE);
+#ifdef ENABLE_CLEAR_UI
+        char name[17];
+        SETTINGS_FetchChannelName(name, vfo->CHANNEL_SAVE, sizeof(name));
+        memset(payload->name, 0, sizeof(payload->name));
+        memcpy(payload->name, name, MIN(strlen(name), sizeof(payload->name)));
+#else
+        SETTINGS_FetchChannelName(payload->name, vfo->CHANNEL_SAVE, sizeof(payload->name));
+#endif
     } else {
-        memcpy(payload->name, vfo->Name, sizeof(vfo->Name));
+        memcpy(payload->name, vfo->Name, sizeof(payload->name));
     }
 
     g_FSK_Buffer[34] = CRC_Calculate(&g_FSK_Buffer[1], 2 + 64);
@@ -183,6 +199,9 @@ static void BEAM_SavePayloadToFirstFreeChannel(const BEAM_Payload_t *payload)
     vfo.TX_OFFSET_FREQUENCY_DIRECTION = payload->tx_offset_direction;
     vfo.Modulation = payload->modulation;
     vfo.TX_LOCK = payload->tx_lock;
+#ifdef ENABLE_CLEAR_UI
+    vfo.RECEIVE_ONLY = payload->version == 3 && payload->_pad == CLEARUI_RECEIVE_ONLY_MARKER;
+#endif
     vfo.BUSY_CHANNEL_LOCK = payload->busy_channel_lock;
     vfo.OUTPUT_POWER = payload->output_power;
     vfo.CHANNEL_BANDWIDTH = payload->channel_bandwidth;
@@ -198,7 +217,7 @@ static void BEAM_SavePayloadToFirstFreeChannel(const BEAM_Payload_t *payload)
     vfo.SCANLIST_PARTICIPATION = payload->scanlist;
     vfo.Compander = payload->compander;
     
-    memcpy(vfo.Name, payload->name, sizeof(vfo.Name));
+    memcpy(vfo.Name, payload->name, sizeof(payload->name));
     vfo.Name[sizeof(vfo.Name) - 1] = '\0';
     
     RADIO_ApplyOffset(&vfo);
@@ -308,7 +327,12 @@ void BEAM_StorePacket(void)
 
     BEAM_Payload_t * const payload = (BEAM_Payload_t *)&g_FSK_Buffer[2];
 
-    if (payload->magic != BEAM_PACKET_MAGIC || payload->version != BEAM_PACKET_VERSION)
+    if (payload->magic != BEAM_PACKET_MAGIC ||
+        (payload->version != BEAM_PACKET_VERSION
+#ifdef ENABLE_CLEAR_UI
+         && !(payload->version == 3 && payload->_pad == CLEARUI_RECEIVE_ONLY_MARKER)
+#endif
+        ))
         goto error;
 
     BEAM_SavePayloadToFirstFreeChannel(payload);
