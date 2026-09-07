@@ -185,7 +185,10 @@ def main():
         path, binary = Path(tmp)/'test.c', Path(tmp)/'test'
         path.write_text(source)
         for extra in ([], ['-DENABLE_FEAT_F4HWN_SCAN_FASTER']):
-            subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror',
+            # The upstream range macro retains a >= 0 check for signed callers.
+            # GCC warns when these tests pass uint16_t; keep that warning visible
+            # without treating this harmless specialization as a build failure.
+            subprocess.run(['cc','-std=gnu11','-Wall','-Wextra','-Werror','-Wno-error=type-limits',
                         '-DENABLE_CLEAR_UI','-DENABLE_FEAT_F4HWN','-DENABLE_FASTER_CHANNEL_SCAN',
                         '-fsanitize=address,undefined','-I',str(ROOT/'App'),
                         *extra,str(path),'-o',str(binary)],check=True)
