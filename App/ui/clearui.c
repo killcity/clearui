@@ -71,6 +71,9 @@ static void UI_CLEARUI_InvertTile(uint8_t x1, uint8_t x2, uint8_t first, uint8_t
 
 static const uint8_t MENU_NAME_IDS[] =
 {
+#ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
+    MENU_SET_CFG,
+#endif
     MENU_STEP, MENU_TXP, MENU_OFFSET, MENU_W_N,
     MENU_MEM_CH, MENU_DEL_CH, MENU_MEM_NAME, MENU_LIST_CH,
     MENU_S_LIST, MENU_S_PRI, MENU_S_PRI_CH_1, MENU_S_PRI_CH_2,
@@ -119,6 +122,9 @@ static const uint8_t MENU_NAME_IDS[] =
 };
 
 static const char MENU_NAMES[] =
+#ifdef ENABLE_FEAT_F4HWN_MULTIBOOT
+    "Configuration bank\0"
+#endif
     "Tuning step\0Transmit power\0Repeater offset\0Bandwidth\0"
     "Save channel\0Delete channel\0Channel name\0Channel group\0"
     "Group select\0Priority scan\0Priority channel 1\0Priority channel 2\0"

@@ -1,8 +1,13 @@
 # ClearUI
 
 A community-developed interface for the **Quansheng UV-K1**, based on
-[F4HWN Fusion 5.9.0](https://github.com/armel/uv-k1-k5v3-firmware-custom).
+[F4HWN Fusion 6.0.0](https://github.com/armel/uv-k1-k5v3-firmware-custom/releases/tag/v6.0.0).
 An independent, experimental fork—not an official F4HWN release.
+
+**This branch is the C10 multiboot test candidate, not the published C8c release.**
+It adds Fusion 6 multiboot and separate configuration banks while retaining the
+ClearUI interface and HF listening mode. Read [MULTIBOOT.md](MULTIBOOT.md) for
+installation, the required C10 CHIRP module, and legacy-memory migration.
 
 > [!WARNING]
 > **Use at your own risk.** This firmware can brick your radio, erase calibration
@@ -33,12 +38,12 @@ See [more display layouts](images/clearui-vfo-gallery.png).
 
 ## Status and supported hardware
 
-**C8c is an experimental release for UV-K1.** The upstream repository also
+**C10 is an unflashed multiboot test candidate for UV-K1.** The upstream repository also
 targets UV-K5 V3, but this fork's community build is not claimed tested on that
 model. Do **not** flash it onto an older UV-K5/UV-K6 with the DP32G030 MCU.
 
-Builds and host-side regression tests pass locally. Earlier iterations have
-been tried on a UV-K1, but C8c has not completed a hardware-validation cycle.
+Both ClearUI and Fusion builds and all 13 host-side regression suites pass locally.
+Earlier iterations have been tried on a UV-K1, but C10 has not completed a hardware-validation cycle.
 The known B-VFO signal-meter problem in dual watch remains under investigation.
 Passing host tests does not establish RF performance or hardware safety.
 
@@ -48,12 +53,14 @@ have listening/measurement tradeoffs; a waterfall pauses while listening.
 
 ## Get started
 
-1. Read the [installation and recovery notes](INSTALL.md).
-2. Download the UV-K1 binary and matching C8 CHIRP module from
-   [Releases](https://github.com/killcity/clearui/releases).
-3. Back up your configuration and calibration before changing firmware.
-4. Flash only the UV-K1 binary. Keep the backup and a known-good recovery image.
-5. Use the bundled ClearUI CHIRP module for programming, not the stock Fusion module.
+1. Read the [multiboot test instructions](MULTIBOOT.md) and [safety notes](SAFETY.md).
+2. Back up configuration and calibration before changing firmware.
+3. Use the C10 test binary only with the Fusion 6 multiboot workflow.
+4. Use the bundled C10 CHIRP module, not the C8 or stock Fusion module.
+
+The existing [published releases](https://github.com/killcity/clearui/releases)
+and [legacy installation guide](INSTALL.md) describe earlier standalone builds.
+They are not C10 multiboot installation instructions.
 
 No personal channel lists, calibration files or radio backups are distributed.
 Receive-only is a per-channel setting: public-safety channels are **not**

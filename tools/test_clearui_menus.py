@@ -58,6 +58,8 @@ def main():
 #define MENU_LEVEL_ITEMS 1
 #define SET_LCK_LEN 4
 #define SET_SAV_LEN 4
+#define MB_BANK_COUNT 5
+static uint8_t MB_GetActiveBank(void) {return 1;}
 typedef struct {const char name[7]; uint8_t menu_id;} t_menu_item;
 typedef struct {const char *name; uint8_t id;} t_sidefunction;
 static struct {unsigned Modulation; unsigned CHANNEL_SAVE; unsigned StepFrequency;} vfo;
@@ -114,7 +116,7 @@ static void UI_DrawRectangleBuffer(uint8_t buffer[7][128], int x1, int y1, int x
 }
 '''
     source += "\n".join(enums)
-    source += "enum {" + ",".join(sorted(set(re.findall(r"\bACTION_OPT_\w+", ui)))) + "};\n"
+    source += re.search(r"enum ACTION_OPT_t\s*\{.*?\};", read("App/settings.h"), re.S).group() + "\n"
     frequency_header = read("App/frequencies.h")
     source += re.search(r"typedef enum\s*\{[^}]*STEP_2_5kHz.*?STEP_Setting_t;", frequency_header, re.S).group()
     source += declaration("App/frequencies.c", "gStepFrequencyTable")

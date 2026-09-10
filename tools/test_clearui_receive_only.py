@@ -24,7 +24,6 @@ const uint16_t dual_watch_count_after_tx_10ms=20;
 bool gDualWatchActive, gRxVfoIsActive, gFlagEndTransmission;
 uint8_t gUpdateStatus;
 uint8_t gVfoConfigureMode, gBatteryDisplayLevel=3, gRTTECountdown_10ms;
-AlarmState_t gAlarmState;
 static unsigned tx_started, gates, pa_off, gpio_off, beeps, freq_checks;
 static VfoState_t state;
 static uint8_t flash[0x9200];
@@ -53,8 +52,7 @@ int main(void) {
     for(unsigned active=0;active<2;active++)
     for(unsigned dual=0;dual<2;dual++)
     for(unsigned cross=0;cross<2;cross++)
-    for(unsigned lock=0;lock<2;lock++)
-    for(unsigned alarm=0;alarm<2;alarm++) {
+    for(unsigned lock=0;lock<2;lock++) {
         gEeprom.RX_VFO=gEeprom.TX_VFO=active;
         gEeprom.DUAL_WATCH=dual ? DUAL_WATCH_CHAN_A : DUAL_WATCH_OFF;
         gEeprom.CROSS_BAND_RX_TX=cross ? CROSS_BAND_CHAN_A : CROSS_BAND_OFF;
@@ -62,7 +60,6 @@ int main(void) {
         gRxVfoIsActive=false;
         gTxVfo->TX_LOCK=lock;
         gTxVfo->RECEIVE_ONLY=true;
-        gAlarmState=alarm ? ALARM_STATE_SITE_ALARM : ALARM_STATE_OFF;
         unsigned old=tx_started, checked=freq_checks;
         RADIO_PrepareTX();
         assert(tx_started==old && freq_checks==checked && state==VFO_STATE_TX_DISABLE);
@@ -88,7 +85,7 @@ int main(void) {
     assert(SETTINGS_FetchChannelScanDisplayInfo(106,&info) && !info.receiveOnly);
     flash[106*16+15]=0xff;
     assert(SETTINGS_FetchChannelScanDisplayInfo(106,&info) && !info.receiveOnly);
-    puts("Receive-only: TX bypass/dual/crossband/alarm blocked; normal TX preserved; channel/VFO saves and fast-scan decode passed.");
+    puts("Receive-only: TX bypass/dual/crossband blocked; normal TX preserved; channel/VFO saves and fast-scan decode passed.");
 }
 '''
 
@@ -107,7 +104,7 @@ def main():
         source=Path(tmp)/'test.c'; binary=Path(tmp)/'test'
         source.write_text(PREAMBLE+routines+TESTS)
         subprocess.run(['cc','-g','-fsanitize=address,undefined','-DENABLE_CLEAR_UI',
-                        '-DENABLE_FEAT_F4HWN','-DENABLE_ALARM','-I',str(ROOT/'App'),
+                        '-DENABLE_FEAT_F4HWN','-I',str(ROOT/'App'),
                         str(source),'-o',str(binary)],check=True)
         subprocess.run([str(binary)],check=True)
 

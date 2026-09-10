@@ -2,7 +2,7 @@ name: ClearUI build and host tests
 
 on:
   push:
-    branches: [ main, clearui ]
+    branches: [ main, clearui, clearui-multiboot ]
   pull_request:
   workflow_dispatch:
 
@@ -45,19 +45,21 @@ jobs:
 
     - name: Validate firmware image bounds
       run: |
-        python3 -c 'from pathlib import Path; import struct; b=Path("build/ClearUI/f4hwn.clearui.bin").read_bytes(); sp,pc=struct.unpack_from("<II", b); assert sp==0x20004000 and pc&1 and 0x08002800 <= (pc&~1) < 0x08002800+len(b); assert len(b)<=120832 and b"ClearUI C5" in b; print(len(b), "bytes; UV-K1 vectors and flash limit passed")'
-        sha256sum build/ClearUI/f4hwn.clearui.bin chirp/fusion-clearui-chirp-c8.py
+        python3 -c 'from pathlib import Path; import struct; b=Path("build/ClearUI/f4hwn.clearui.bin").read_bytes(); sp,pc=struct.unpack_from("<II", b); assert sp==0x20004000 and pc&1 and 0x08002800 <= (pc&~1) < 0x08002800+len(b); assert len(b)<=120832 and b"ClearUI C10" in b; print(len(b), "bytes; UV-K1 vectors and flash limit passed")'
+        sha256sum build/ClearUI/f4hwn.clearui.bin chirp/clearui-multiboot-c10.py
 
     - name: Upload firmware artifact
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
       with:
-        name: ClearUI-UV-K1-experimental
+        name: ClearUI-C10-multiboot-UV-K1-test
         if-no-files-found: error
         path: |
           build/ClearUI/f4hwn.clearui.bin
-          chirp/fusion-clearui-chirp-c8.py
+          chirp/clearui-multiboot-c10.py
+          tools/migrate_clearui_multiboot.py
           chirp/COPYING
           LICENSE
           NOTICE
           LICENSES/
-          INSTALL.md
+          MULTIBOOT.md
+          SAFETY.md

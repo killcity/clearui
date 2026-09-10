@@ -9,8 +9,8 @@
 #ifdef ENABLE_FEAT_F4HWN
 #ifdef ENABLE_CLEAR_UI
     // Fits the programming protocol's 16-byte version field.
-    /* C6 keeps the C5 programming ABI, including per-channel RX-only. */
-    const char Version[]         = "ClearUI C5";
+    /* v6 has different action IDs/capabilities. Reject legacy drivers. */
+    const char Version[]         = "ClearUI C10";
 #else
     const char Version[]         = AUTHOR_STRING_2 " " VERSION_STRING_2;
 #endif

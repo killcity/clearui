@@ -53,15 +53,15 @@ int main(void) {
     }
     uint8_t data[8] = {1,2,3,4,5,6,7,8};
     assert(sizeof(ChannelAttributes_t) == 2);
-    EEPROM_WriteBuffer(0xD000, data);
-    assert(flash_writes == 1 && last_address == 0x12000);
+    EEPROM_WriteBuffer(0xD000, data, sizeof(data));
+    assert(flash_writes == 1 && last_address == 0xD000);
     assert(memcmp(last_data, data, 8) == 0);
-    EEPROM_WriteBuffer(0xD1F8, data);
-    assert(flash_writes == 2 && last_address == 0x121F8);
-    EEPROM_WriteBuffer(0xD200, data);
+    EEPROM_WriteBuffer(0xD1F8, data, sizeof(data));
+    assert(flash_writes == 2 && last_address == 0xD1F8);
+    EEPROM_WriteBuffer(0xD200, data, sizeof(data));
     assert(flash_writes == 2);
     EEPROM_ReadBuffer(0xD000, data, sizeof(data));
-    assert(last_address == 0x12000 && data[0] == 0x55);
+    assert(last_address == 0xD000 && data[0] == 0x55);
     EEPROM_ReadBuffer(0xD200, data, sizeof(data));
     assert(flash_reads == 1 && data[0] == 0xff);
     EEPROM_ReadBuffer(0xB000, data, sizeof(data));

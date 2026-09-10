@@ -8,6 +8,8 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECKS = [
     ['build_clearui_font.py', '--check'],
     ['test_clearui_driver.py'],
+    ['test_clearui_c10_driver.py'],
+    ['test_clearui_multiboot.py'],
     ['test_clearui_groups.py'],
     ['test_clearui_algorithms.py'],
     ['test_clearui_storage.py'],

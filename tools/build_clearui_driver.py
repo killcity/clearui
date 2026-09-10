@@ -4,8 +4,14 @@ from pathlib import Path
 import argparse
 import hashlib
 
-def build(source, meter_styles=False, battery_styles=False):
+def build(source, meter_styles=False, battery_styles=False, multiboot=False):
     text=Path(source).read_text()
+    if multiboot:
+        # Normalize only the renamed patch anchors; retain the v6 code, action
+        # IDs and settings layout from the pinned, unmodified upstream file.
+        assert hashlib.sha256(Path(source).read_bytes()).hexdigest() == 'c1c560ae081a40ea7aee0cd1e71b47641e63d64aea8886412c1041bda14f5156'
+        text = text.replace('2026/08/30 (c) F4HWN v6.0.0', '2026/08/14 (c) F4HWN v5.9.0')
+        text = text.replace('MODEL = "UV-K1 & UV-K5 V3 (F4HWN)"', 'MODEL = "UV-K1 & UV-K5 V3 (F4HWN Fusion)"')
     def replace(old,new):
         nonlocal text
         if text.count(old)!=1:
@@ -113,8 +119,22 @@ def build(source, meter_styles=False, battery_styles=False):
         begin = text.index('        bat_txt_setting.set_doc(')
         end = text.index('        tmpback =', begin)
         text = text[:begin] + "        bat_txt_setting.set_doc('C8: Icon, Voltage, Percentage, or Icon + percentage. Earlier firmware may not display these choices correctly.')\n" + text[end:]
+    if multiboot:
+        text = text.replace('f not in ("ClearUI C1", "ClearUI C5")', 'f != "ClearUI C10"')
+        text = text.replace('ClearUI C1 or C5 firmware', 'ClearUI C10 firmware')
+        text = text.replace('f != "ClearUI C5"', 'f != "ClearUI C10"')
+        text = text.replace('ClearUI C5', 'ClearUI C10')
+        text = text.replace('flash C5 before', 'flash C10 before')
+        text = text.replace('Fusion 5.9.0', 'Fusion 6.0.0')
+        text = text.replace('(Fusion ClearUI)', '(ClearUI Multiboot C10)')
+        text = text.replace('012000..012200', '00D000..00D200 in the active configuration bank')
+        text = text.replace('ClearUI C10/C6: named groups, receive-only, C6 meters', 'ClearUI C10: multiboot, named groups and receive-only')
+        text = text.replace(' (C5)', '').replace(' (requires C5)', '')
+        text = text.replace('Meter style (C6: Spine / Ribbon)', 'Meter style (Spine / Ribbon)')
+        text = text.replace('C6: Spine uses a vertical meter; Ribbon uses a horizontal strip. C5 retains its original meter.', 'Spine uses a vertical meter; Ribbon uses a horizontal strip.')
+        text = text.replace('C8: Icon, Voltage, Percentage, or Icon + percentage. Earlier firmware may not display these choices correctly.', 'Icon, Voltage, Percentage, or Icon + percentage.')
     # Keep all upstream copyright/license notices and distinguish modifications.
-    return '# ClearUI modifications: named groups, bounded transfers, C5 receive-only channels.\n'+text
+    return ('# ClearUI C10 modifications: banked named groups, bounded transfers, receive-only channels.\n' if multiboot else '# ClearUI modifications: named groups, bounded transfers, C5 receive-only channels.\n')+text
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
@@ -122,7 +142,8 @@ if __name__=='__main__':
     parser.add_argument('output',type=Path)
     parser.add_argument('--meter-styles', action='store_true', help='C6 UI labels; same C5 programming format')
     parser.add_argument('--battery-styles', action='store_true', help='C8 battery format choices')
+    parser.add_argument('--multiboot', action='store_true', help='C10 on the pinned Fusion 6.0.0 driver')
     args=parser.parse_args()
-    args.output.write_text(build(args.upstream, args.meter_styles, args.battery_styles))
+    args.output.write_text(build(args.upstream, args.meter_styles, args.battery_styles, args.multiboot))
     print(f'Upstream SHA256: {hashlib.sha256(args.upstream.read_bytes()).hexdigest()}')
     print(args.output)
