@@ -85,7 +85,8 @@ static void tap(KEY_Code_t key) {
 static void hold_menu(void) {
     kbd.current=KEY_MENU;kbd.counter=3;HFHandleKeys();assert(!hfMenu && hfMenuPending);
     kbd.counter=16;HFHandleKeys();assert(hfMenu==4 && !hfMenuPending);
-    for(unsigned i=0;i<8;i++)HFHandleKeys();assert(hfMenu==4 && hfSelection==0);
+    for(unsigned i=0;i<8;i++) { HFHandleKeys(); }
+    assert(hfMenu==4 && hfSelection==0);
     kbd.current=KEY_INVALID;kbd.counter=0;HFHandleKeys();assert(hfMenu==4);
 }
 static void dump(const char *dir,const char *name) {
