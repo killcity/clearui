@@ -181,6 +181,7 @@ static void CLEARUI_SaveListName(unsigned list, const char *name) {
     source += r'''
 #define CLEARUI_ALL_SETTINGS 255
 #define CLEARUI_LIST_NAMES 254
+#define CLEARUI_HF_LISTEN 253
 static uint8_t gClearUIMenuLevel, gClearUIMenuCategory, gClearUIMenuSelection;
 static uint8_t gClearUIQuickContext, gClearUIQuickSelection, gClearUIQuickLevel;
 static uint8_t gClearUIQuickDirectItem=CLEARUI_QUICK_COUNT;
@@ -204,6 +205,8 @@ static void UI_CLEARUI_RenderBackground(void) {
 static unsigned scope_calls, scope_vfo;
 static bool gClearUINumericEntry;
 static void APP_RunSpectrum(void) {++scope_calls; scope_vfo=gEeprom.TX_VFO;}
+static unsigned hf_calls;
+static void APP_RunHFListen(void) {++hf_calls;}
 static void CLEARUI_QuickApply(void) {}
 static uint8_t CLEARUI_QuickCurrentSelection(void) {return 0;}
 '''
@@ -299,6 +302,20 @@ int main(int argc, char **argv) {
     assert(UI_ClearTextWidth("iii",255)<UI_ClearTextWidth("WWW",255));
     assert(strcmp(QUICK_LABELS[CLEARUI_QUICK_LIST],"Group select")==0);
     assert(strcmp(QUICK_LABELS[CLEARUI_QUICK_WATERFALL],"Scope")==0);
+    assert(strcmp(QUICK_LABELS[CLEARUI_QUICK_HF_LISTEN],"HF Listen")==0);
+    assert(strcmp(UI_CLEARUI_MenuItemName(CLEARUI_HF_LISTEN),"HF Listen")==0);
+    for(unsigned context=0;context<2;context++) {
+        gClearUIQuickContext=context;
+        unsigned found=0;
+        for(unsigned row=0;row<CLEARUI_QuickItemCount();row++) {
+            if(CLEARUI_QuickItemId(row)!=CLEARUI_QUICK_HF_LISTEN) continue;
+            ++found; gClearUIQuickSelection=row; gClearUIQuickLevel=0;
+            const unsigned before=hf_calls;
+            CLEARUI_QuickExecute();
+            assert(hf_calls==before+1 && gRequestDisplayScreen==DISPLAY_MAIN);
+        }
+        assert(found==1);
+    }
     // Both idle contexts expose one direct Scope action. It launches once
     // for either selected VFO and returns to the main screen after exit.
     for(unsigned context=0;context<2;context++) {

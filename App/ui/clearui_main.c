@@ -238,6 +238,11 @@ static void CLEARUI_DrawNameAt(const char *text, int16_t x, uint8_t y,
     }
 }
 
+void UI_CLEARUI_DrawLargeText(const char *text, int16_t x, uint8_t y, uint8_t right)
+{
+    CLEARUI_DrawNameAt(text, x, y, right);
+}
+
 static void CLEARUI_DrawBigIdentity(const char *text, uint8_t y)
 {
     const uint8_t visibleWidth = gSetting_set_met ? 128 : 114;
@@ -463,6 +468,11 @@ static void CLEARUI_DrawCompactBattery(void)
     const uint8_t filled = MIN(gBatteryDisplayLevel, 6);
     for (uint8_t x = 0; x < filled; x++)
         battery[6 - x] = 0x3E;
+}
+
+void UI_CLEARUI_DrawBattery(void)
+{
+    CLEARUI_DrawCompactBattery();
 }
 
 static void CLEARUI_DrawCompactLock(void)

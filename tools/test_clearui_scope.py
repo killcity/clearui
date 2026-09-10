@@ -32,6 +32,7 @@ static int currentState=SPECTRUM;
 static KEY_Code_t fakeKey;
 static KEY_Code_t KEYBOARD_GetKey(void) {return fakeKey;}
 static void SYSTEM_DelayMs(unsigned ms) {assert(ms==20);}
+static bool HFHandleKeys(void) {return false;} // Tested separately with real HF logic.
 static void UpdateScanStep(bool inc) {assert(inc); settings.scanStepIndex=(settings.scanStepIndex+1)%15; ++launches;}
 static void ToggleStepsCount(void) {settings.stepsCount=(settings.stepsCount+3)%4; ++launches;}
 static void ToggleModulation(void) {settings.modulationType=(settings.modulationType+1)%3; ++launches;}

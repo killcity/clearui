@@ -86,6 +86,13 @@ The vertical **Spine** signal meter is the default for fresh/full-reset settings
 Existing saved choices are preserved; choose **Meter style → Spine** to switch
 without resetting. Ribbon remains available as the horizontal alternative.
 
+## Development: HF Listen
+
+The current source adds an experimental **C9b-test HF Listen** screen with a
+combined spectrum/waterfall, four upper-HF ham-band presets, and receive-only
+listening controls. See [HF Listen controls and limits](HF-LISTEN.md).
+The published C8c release does not include this test feature.
+
 ## Build and test
 
 Requires CMake 3.22+, Ninja, Python 3.9+, a native C compiler with ASan/UBSan,

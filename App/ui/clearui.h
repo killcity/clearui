@@ -14,6 +14,8 @@ void UI_DisplayClearUIScanGroup(void);
 void UI_DisplayClearUIMain(void);
 void UI_CLEARUI_RenderBackground(void);
 void UI_CLEARUI_RenderBootLogo(void);
+void UI_CLEARUI_DrawLargeText(const char *text, int16_t x, uint8_t y, uint8_t right);
+void UI_CLEARUI_DrawBattery(void);
 void UI_CLEARUI_TimeSlice10ms(void);
 void UI_CLEARUI_TimeSlice500ms(void);
 void UI_CLEARUI_DrawScopeMenu(const char *title, const char *const *labels,

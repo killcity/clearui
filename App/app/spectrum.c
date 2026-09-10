@@ -33,6 +33,7 @@
 #include "ui/main.h"
 #ifdef ENABLE_CLEAR_UI
 #include "ui/clearui.h"
+#include "ui/clearui_text.h"
 #endif
 
 #ifdef ENABLE_FEAT_F4HWN_K5VIEWER
@@ -107,6 +108,19 @@ static uint8_t waterfallHistory[32][16];
 static uint8_t waterfallPhase;
 static bool scopeMenuOpen, scopeMenuChild, scopeMenuEatRelease;
 static uint8_t scopeMenuRow, scopeMenuChoice;
+// Upper-HF receive-only session; no new EEPROM fields or channel edits.
+static bool hfListen;
+static uint8_t hfBand = 3, hfMenu, hfSelection;
+static bool hfEatRelease, hfMenuPending;
+// Frequencies in 10 Hz units. Band edges: arrl.org/frequency-bands.
+static const struct FrequencyBandInfo hfBands[] = {
+    {1806800, 1816800, 1813000},
+    {2100000, 2145000, 2125000},
+    {2489000, 2499000, 2495000},
+    {2800000, 2970000, 2840000}
+};
+static const char *const hfBandNames[] = {"17 m", "15 m", "12 m", "10 m"};
+static const char *const hfMenuLabels[] = {"Receive mode", "Bandwidth"};
 static const char *const scopeMenuLabels[] = {
     "Trigger mode", "Sweep step", "Sweep points", "Mode",
     "Receive bandwidth", "Clear history", "Close scope"
@@ -270,6 +284,9 @@ static void LoadSettings()
 
 static void SaveSettings()
 {
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) return;
+#endif
     uint8_t Data[8] = {0};
     PY25Q16_ReadBuffer(0x00A148, Data, sizeof(Data));
 
@@ -500,6 +517,9 @@ static void SetFScan(uint32_t f)
 
 static bool IsPeakOverOpenLevel()
 {
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) return false; // HF audio opens only on an explicit listen key.
+#endif
     uint16_t openLevel = settings.rssiTriggerLevel;
     if (openLevel <= (uint16_t)(RSSI_MAX_VALUE - LISTEN_OPEN_HYST_RSSI))
         openLevel += LISTEN_OPEN_HYST_RSSI;
@@ -586,11 +606,22 @@ static uint16_t GetStepsCountDisplay()
 uint32_t GetBW() { return GetStepsCount() * GetScanStep(); }
 uint32_t GetFStart()
 {
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) {
+        const uint32_t lastStart = hfBands[hfBand].upper - (GetStepsCount() - 1) * GetScanStep();
+        const uint32_t start = currentFreq - (GetBW() >> 1);
+        return start < hfBands[hfBand].lower ? hfBands[hfBand].lower :
+               start > lastStart ? lastStart : start;
+    }
+#endif
     return IsCenterMode() ? currentFreq - (GetBW() >> 1) : currentFreq;
 }
 
 uint32_t GetFEnd()
 {
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) return GetFStart() + (GetStepsCount() - 1) * GetScanStep();
+#endif
 #ifdef ENABLE_SCAN_RANGES
     if (gScanRangeStart)
     {
@@ -1609,8 +1640,49 @@ static void BuildCurrentSpectrumTopY(uint8_t *topY)
 }
 #endif
 
+#ifdef ENABLE_CLEAR_UI
+static void HFPixel(uint8_t x, uint8_t y, bool fill)
+{
+    if (y < 8) {
+        if (fill) gStatusLine[x] |= 1u << y;
+        else gStatusLine[x] &= ~(1u << y);
+    } else PutPixel(x, y - 8, fill);
+}
+
+static void HFSmallText(const char *text, uint8_t x, uint8_t y, uint8_t right, bool fill)
+{
+    uint8_t line[128] = {0};
+    UI_ClearTextLine(line, text, x, right, false);
+    for (uint8_t column = x; column < right; ++column)
+        for (uint8_t bit = 0; bit < 7; ++bit)
+            if (line[column] & (1u << bit)) HFPixel(column, y + bit, fill);
+}
+
+static void HFHeader(void)
+{
+    // Same compact type, rounded pills and saved battery display as main VFO.
+    memset(gStatusLine, 0x7f, 14);
+    gStatusLine[0] = gStatusLine[13] = 0x3e;
+    GUI_DisplaySmallest("HF", 3, 1, true, false);
+    GUI_DisplaySmallest(hfBandNames[hfBand], 20, 1, true, true);
+    GUI_DisplaySmallest(gModulationStr[settings.modulationType], 44, 1, true, true);
+    for (uint8_t x = 69; x < 93; ++x)
+        gStatusLine[x] = x == 69 || x == 92 ? 0x3e : 0x7f;
+    GUI_DisplaySmallest(currentState == STILL ? "RX" : "SWP", 75, 1, true, false);
+    UI_CLEARUI_DrawBattery();
+}
+#endif
+
 static void DrawStatus()
 {
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) {
+        BOARD_ADC_GetBatteryInfo(&gBatteryVoltages[gBatteryCheckCounter % 4], &gBatteryCurrent);
+        BATTERY_GetReadings(false);
+        HFHeader();
+        return;
+    }
+#endif
     if (manualSetFlag)
     {
         char curStr[6];
@@ -2066,6 +2138,175 @@ static void ClearUIScopeRender(void)
     UI_CLEARUI_DrawScopeMenu(scopeMenuChild ? scopeMenuLabels[item] : NULL,
                             labels, count, scopeMenuChild ? scopeMenuChoice : scopeMenuRow);
 }
+
+static uint32_t HFClampFrequency(uint32_t frequency)
+{
+    return frequency < hfBands[hfBand].lower ? hfBands[hfBand].lower :
+           frequency > hfBands[hfBand].upper ? hfBands[hfBand].upper : frequency;
+}
+
+static void HFStartSweep(void)
+{
+    monitorMode = false;
+    SetState(SPECTRUM);
+    RelaunchScan();
+    newScanStart = false;
+}
+
+static void HFStartListening(void)
+{
+    SetState(STILL);
+    monitorMode = true;
+    newScanStart = false;
+    SetF(currentFreq);
+    ToggleRX(true);
+}
+
+static void HFMenuKey(KEY_Code_t key)
+{
+    const uint8_t count = hfMenu == 1 ? ARRAY_SIZE(hfBands) : hfMenu == 4 ? ARRAY_SIZE(hfMenuLabels) : 3;
+    if (key == KEY_UP || key == KEY_DOWN) {
+        hfSelection = key == KEY_DOWN ? (hfSelection + 1) % count :
+                      hfSelection ? hfSelection - 1 : count - 1;
+    } else if (key == KEY_EXIT || key == KEY_PTT) {
+        if ((hfMenu == 2 || hfMenu == 3) && key == KEY_EXIT) {
+            hfSelection = hfMenu - 2;
+            hfMenu = 4;
+        } else hfMenu = 0;
+    } else if (key == KEY_MENU) {
+        if (hfMenu == 4) {
+            hfMenu = hfSelection + 2;
+            hfSelection = hfMenu == 2 ? settings.modulationType : settings.listenBw;
+        } else {
+            // Stop audio before changing band, mode or filter.
+            ToggleRX(false);
+            if (hfMenu == 1) {
+                hfBand = hfSelection;
+                currentFreq = hfBands[hfBand].middle;
+            } else if (hfMenu == 2) {
+                settings.modulationType = hfSelection;
+                RADIO_SetModulation(settings.modulationType);
+            } else settings.listenBw = hfSelection;
+            hfMenu = 0;
+            HFStartSweep();
+        }
+    }
+    redrawScreen = redrawStatus = true;
+}
+
+static bool HFHandleKeys(void)
+{
+    if (!hfListen) return false;
+    if (hfEatRelease) {
+        if (kbd.current == KEY_INVALID) hfEatRelease = false;
+        return true;
+    }
+    // Outside a window, delay MENU until release so a hold can open settings
+    // without briefly opening (or selecting a row in) the band picker.
+    if (!hfMenu && kbd.current == KEY_MENU) {
+        if (kbd.counter == 3) hfMenuPending = true;
+        else if (kbd.counter == 16 && hfMenuPending) {
+            hfMenuPending = false;
+            hfMenu = 4;
+            hfSelection = 0;
+            hfEatRelease = true;
+            redrawScreen = true;
+        }
+        return true;
+    }
+    if (hfMenuPending) {
+        hfMenuPending = false;
+        if (kbd.current == KEY_INVALID) {
+            hfMenu = 1;
+            hfSelection = hfBand;
+            redrawScreen = true;
+            return true;
+        }
+    }
+    const bool arrow = kbd.current == KEY_UP || kbd.current == KEY_DOWN;
+    if (kbd.counter != 3 && !(kbd.counter == 16 && arrow)) return true;
+    if (hfMenu) {
+        HFMenuKey(kbd.current);
+        if (!arrow) hfEatRelease = true;
+        return true;
+    }
+    if (arrow) {
+        // UV-K1 right arrow is KEY_DOWN, matching all ClearUI lists.
+        const uint32_t step = kbd.counter == 16 ? 500 : 10;
+        currentFreq = HFClampFrequency(kbd.current == KEY_DOWN ?
+                                      currentFreq + step : currentFreq - step);
+        if (currentState == STILL) {
+            SetF(currentFreq);
+            ResetWaterfall(); // Old pixels must not acquire a new frequency axis.
+        } else HFStartSweep();
+    } else if (kbd.current == KEY_STAR || kbd.current == KEY_PTT) {
+        // PTT is a receive-only listen shortcut. No generic TX dispatch.
+        if (currentState == STILL) HFStartSweep();
+        else HFStartListening();
+    } else if (kbd.current == KEY_EXIT) {
+        if (currentState == STILL) HFStartSweep();
+        else {
+            ToggleRX(false);
+            DeInitSpectrum();
+        }
+    }
+    if (!arrow) hfEatRelease = true;
+    redrawScreen = redrawStatus = true;
+    return true;
+}
+
+static void HFBandWindow(void)
+{
+    // Pixel-positioned rather than the general five-page settings window.
+    // Four bands are always visible, with no counter or scrolling gutter.
+    for (uint8_t y = 8; y < 61; ++y)
+        for (uint8_t x = 23; x < 106; ++x)
+            HFPixel(x, y, x == 23 || x == 105 || y == 8 || y == 60);
+    HFSmallText("Ham band", 29, 11, 101, true);
+    for (uint8_t x = 28; x < 101; ++x) HFPixel(x, 19, true);
+    for (uint8_t i = 0; i < ARRAY_SIZE(hfBands); ++i) {
+        const bool selected = i == hfSelection;
+        if (selected)
+            for (uint8_t y = 21 + i * 9; y < 30 + i * 9; ++y)
+                for (uint8_t x = 28; x < 101; ++x) HFPixel(x, y, true);
+        HFSmallText(hfBandNames[i], 30, 22 + i * 9, 58, !selected);
+        snprintf(String, sizeof(String), "%u.%02u", hfBands[i].middle / 100000,
+                 (hfBands[i].middle % 100000) / 1000);
+        HFSmallText(String, 68, 22 + i * 9, 101, !selected);
+    }
+}
+
+static void HFRender(void)
+{
+    snprintf(String, sizeof(String), "%u.%04u", currentFreq / 100000, (currentFreq % 100000) / 10);
+    UI_CLEARUI_DrawLargeText(String, 3, 3, 125);
+    const uint8_t bars = GetStepsCount();
+    const uint16_t step256 = ((uint16_t)(bars - 1) << 8) / 121;
+    uint8_t previousY = 39;
+    for (uint8_t x = 3; x < 125; ++x) {
+        const uint16_t rssi = InterpolateRssi(bars, (uint16_t)(x - 3) * step256);
+        const uint8_t y = IsRssiHistoryInvalid(rssi) ? 39 : 39 - Rssi2PX(rssi, 0, 13);
+        const uint8_t bottom = y > previousY ? y : previousY;
+        for (uint8_t p = y < previousY ? y : previousY; p <= bottom; ++p)
+            HFPixel(x, p, true);
+        previousY = y;
+        HFPixel(x, 39, true);
+        const uint8_t historyX = (x - 3) * 127 / 121;
+        for (uint8_t row = 0; row < 21; ++row)
+            if (waterfallHistory[row][historyX >> 3] & (1u << (historyX & 7)))
+                HFPixel(x, 43 + row, true);
+    }
+    const uint8_t marker = 3 + (currentFreq - GetFStart()) * 121 / ((bars - 1) * GetScanStep());
+    for (uint8_t y = 26; y < 39; y += 3) HFPixel(marker, y, true);
+    if (hfMenu == 1) HFBandWindow();
+    else if (hfMenu) {
+        const char *const modes[] = {"FM", "AM", "USB"};
+        const char *const bandwidth[] = {"25 kHz", "12.5 kHz", "6.25 kHz"};
+        UI_CLEARUI_DrawScopeMenu(hfMenu == 4 ? "HF settings" : hfMenu == 2 ? "Receive mode" : "Bandwidth",
+            hfMenu == 4 ? hfMenuLabels : hfMenu == 2 ? modes : bandwidth,
+            hfMenu == 4 ? ARRAY_SIZE(hfMenuLabels) : 3, hfSelection);
+    }
+}
 #endif
 
 static void OnKeyDown(uint8_t key) {
@@ -2350,6 +2591,13 @@ static void Render()
 {
     UI_DisplayClear();
 
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) {
+        HFRender();
+        return;
+    }
+#endif
+
     switch (currentState)
     {
     case SPECTRUM:
@@ -2388,6 +2636,7 @@ static bool HandleUserInput()
     }
 
 #ifdef ENABLE_CLEAR_UI
+    if (HFHandleKeys()) return true;
     if (ClearUIScopeHandleKeys()) return true;
 #endif
     // Spectrum MENU key handling:
@@ -2638,6 +2887,16 @@ static void UpdateListening()
 {
     preventKeypress = false;
 
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) {
+        // Dedicated listening never resumes a sweep on a voice pause or tail.
+        // Sampling RSSI here does not overwrite the frozen sweep history.
+        if (listenT) {--listenT; SYSTEM_DelayMs(1);}
+        else {rssiSmoothed = GetRssi(); listenT = 320; redrawStatus = true;}
+        return;
+    }
+#endif
+
     // listenT counts down with 1ms delay per tick — no SPI during this phase.
     if (listenT)
     {
@@ -2781,11 +3040,19 @@ static void Tick()
     {
         HandleUserInput();
     }
+    // An exit has already restored receiver registers; do not retune afterward.
+    if (!isInitialized) return;
     if (newScanStart)
     {
         InitScanPosition();
         newScanStart = false;
     }
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen && hfMenu) {
+        // Hold the sweep while the window is open, preserving its background.
+        SYSTEM_DelayMs(1);
+    } else
+#endif
     if (isListening && currentState != FREQ_INPUT)
     {
         UpdateListening();
@@ -2843,6 +3110,26 @@ void APP_RunSpectrum()
     LoadSettings();
 #endif
     // set the current frequency in the middle of the display
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) {
+        initialFreq = gTxVfo->pRX->Frequency;
+        currentFreq = hfBands[hfBand].middle;
+        settings.stepsCount = STEPS_64;
+        settings.scanStepIndex = S_STEP_0_5kHz;
+        settings.listenBw = BK4819_FILTER_BW_NARROWER;
+        manualSetFlag = true;
+        settings.rssiTriggerLevel = RSSI_MAX_VALUE;
+        currentState = SPECTRUM;
+        menuState = 0;
+        monitorMode = lockAGC = false;
+        hfMenu = 0;
+        hfMenuPending = false;
+        hfEatRelease = true;
+        kbd.current = KEY_INVALID;
+        kbd.counter = 0;
+    } else
+#endif
+    {
 #ifdef ENABLE_SCAN_RANGES
     if (gScanRangeStart)
     {
@@ -2867,6 +3154,7 @@ void APP_RunSpectrum()
     #ifdef ENABLE_FEAT_F4HWN_RESUME_STATE
         SETTINGS_WriteCurrentState();
     #endif
+    }
 
     BackupRegisters();
 
@@ -2876,6 +3164,9 @@ void APP_RunSpectrum()
 
     ToggleRX(true), ToggleRX(false); // hack to prevent noise when squelch off
     RADIO_SetModulation(settings.modulationType = gTxVfo->Modulation);
+#ifdef ENABLE_CLEAR_UI
+    if (hfListen) RADIO_SetModulation(settings.modulationType = MODULATION_USB);
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_SPECTRUM
     BK4819_SetFilterBandwidth(settings.listenBw, false);
@@ -2903,3 +3194,27 @@ void APP_RunSpectrum()
 
     BACKLIGHT_TurnOn();
 }
+
+#ifdef ENABLE_CLEAR_UI
+void APP_RunHFListen(void)
+{
+    // Temporary receiver session: preserve normal scope settings and ranges.
+    const SpectrumSettings savedSettings = settings;
+    const bool savedManual = manualSetFlag;
+#ifdef ENABLE_SCAN_RANGES
+    const uint32_t savedStart = gScanRangeStart, savedStop = gScanRangeStop;
+    gScanRangeStart = gScanRangeStop = 0;
+#endif
+    hfListen = true;
+    APP_RunSpectrum();
+    hfListen = false;
+    settings = savedSettings;
+    manualSetFlag = savedManual;
+    monitorMode = false;
+    SetState(SPECTRUM);
+#ifdef ENABLE_SCAN_RANGES
+    gScanRangeStart = savedStart;
+    gScanRangeStop = savedStop;
+#endif
+}
+#endif

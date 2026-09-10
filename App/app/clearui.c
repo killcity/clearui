@@ -148,6 +148,7 @@ static const uint8_t CLEARUI_QUICK_MEMORY_ITEMS[] =
     CLEARUI_QUICK_LIST,
     CLEARUI_QUICK_ENTER,
     CLEARUI_QUICK_WATERFALL,
+    CLEARUI_QUICK_HF_LISTEN,
     CLEARUI_QUICK_TEMP_SKIP,
     CLEARUI_QUICK_TSQL,
     CLEARUI_QUICK_DUPLEX,
@@ -164,6 +165,7 @@ static const uint8_t CLEARUI_QUICK_VFO_ITEMS[] =
     CLEARUI_QUICK_BAND,
     CLEARUI_QUICK_ENTER,
     CLEARUI_QUICK_WATERFALL,
+    CLEARUI_QUICK_HF_LISTEN,
     CLEARUI_QUICK_STEP,
     CLEARUI_QUICK_MODE,
     CLEARUI_QUICK_BANDWIDTH,
@@ -241,6 +243,9 @@ uint8_t CLEARUI_QuickBandId(uint8_t selection)
 
 static const uint8_t CLEARUI_RADIO_ITEMS[] =
 {
+#ifdef ENABLE_SPECTRUM
+    CLEARUI_HF_LISTEN,
+#endif
     MENU_STEP, MENU_TXP, MENU_SQL, MENU_AM, MENU_W_N, MENU_TDR,
     MENU_R_CTCS, MENU_R_DCS, MENU_T_CTCS, MENU_T_DCS,
     MENU_SFT_D, MENU_OFFSET, MENU_BCL,
@@ -336,7 +341,7 @@ static const uint8_t *CLEARUI_CategoryItems(uint8_t category, uint8_t *count)
 
 static bool CLEARUI_MenuItemVisible(uint8_t id)
 {
-    if (id == CLEARUI_ALL_SETTINGS || id == CLEARUI_LIST_NAMES)
+    if (id == CLEARUI_ALL_SETTINGS || id == CLEARUI_LIST_NAMES || id == CLEARUI_HF_LISTEN)
         return true;
 
     const uint8_t index = UI_MENU_GetMenuIdx(id);
@@ -463,6 +468,15 @@ void CLEARUI_ToggleDual(void)
 static void CLEARUI_OpenMenuItem(void)
 {
     const uint8_t id = CLEARUI_MenuItemId(gClearUIMenuCategory, gClearUIMenuSelection);
+
+#ifdef ENABLE_SPECTRUM
+    if (id == CLEARUI_HF_LISTEN)
+    {
+        APP_RunHFListen();
+        gRequestDisplayScreen = DISPLAY_MAIN;
+        return;
+    }
+#endif
 
     gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
     gClearUIEditorActive = true;
@@ -866,6 +880,11 @@ static void CLEARUI_QuickExecute(void)
 
     switch (CLEARUI_QuickItemId(gClearUIQuickSelection))
     {
+        case CLEARUI_QUICK_HF_LISTEN:
+#ifdef ENABLE_SPECTRUM
+            APP_RunHFListen();
+#endif
+            break;
         case CLEARUI_QUICK_ENTER:
             gClearUINumericEntry = true;
             gRequestDisplayScreen = DISPLAY_MAIN;

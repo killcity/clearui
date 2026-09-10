@@ -58,7 +58,8 @@ static const char *const QUICK_LABELS[CLEARUI_QUICK_COUNT] =
     "Stop Scan",
     "Enter frequency",
     "VOX",
-    "Reverse"
+    "Reverse",
+    "HF Listen"
 };
 
 static void UI_CLEARUI_InvertTile(uint8_t x1, uint8_t x2, uint8_t first, uint8_t last)
@@ -175,6 +176,8 @@ const char *UI_CLEARUI_MenuItemName(uint8_t id)
         return "All Settings";
     if (id == CLEARUI_LIST_NAMES)
         return "Group names";
+    if (id == CLEARUI_HF_LISTEN)
+        return "HF Listen";
 
     for (uint8_t i = 0; i < sizeof(MENU_NAME_IDS); i++)
     {

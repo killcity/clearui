@@ -14,6 +14,7 @@ CHECKS = [
     ['test_clearui_receive_only.py'],
     ['test_clearui_menus.py'],
     ['test_clearui_scope.py'],
+    ['test_clearui_hf.py'],
     ['test_clearui_key_holds.py'],
     ['test_clearui_display.py'],
 ]

@@ -185,6 +185,9 @@ typedef struct PeakInfo
 } PeakInfo;
 
 void APP_RunSpectrum(void);
+#ifdef ENABLE_CLEAR_UI
+void APP_RunHFListen(void);
+#endif
 
 #endif /* ifndef SPECTRUM_H */
 
