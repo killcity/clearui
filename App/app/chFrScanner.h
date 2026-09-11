@@ -11,6 +11,11 @@
 extern int8_t            gScanStateDir;
 extern bool              gScanKeepResult;
 extern bool              gScanPauseMode;
+#ifdef ENABLE_CLEAR_UI
+extern bool gClearUIScanWatch;
+uint8_t CHFRSCANNER_Owner(void);
+bool CHFRSCANNER_IsWatchingOther(void);
+#endif
 
 #ifdef ENABLE_SCAN_RANGES
 extern uint32_t          gScanRangeStart;

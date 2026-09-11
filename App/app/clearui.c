@@ -183,12 +183,14 @@ static const uint8_t CLEARUI_QUICK_SCAN_MEMORY_ITEMS[] =
     CLEARUI_QUICK_TEMP_SKIP,
     CLEARUI_QUICK_LIST,
     CLEARUI_QUICK_SCAN_DIRECTION,
+    CLEARUI_QUICK_SCAN_WATCH,
     CLEARUI_QUICK_SCAN_STOP
 };
 
 static const uint8_t CLEARUI_QUICK_SCAN_VFO_ITEMS[] =
 {
     CLEARUI_QUICK_SCAN_DIRECTION,
+    CLEARUI_QUICK_SCAN_WATCH,
     CLEARUI_QUICK_SCAN_STOP
 };
 
@@ -449,6 +451,10 @@ void CLEARUI_ToggleDual(void)
     static uint8_t previousDual = DUAL_WATCH_CHAN_A;
     static uint8_t previousCross = CROSS_BAND_OFF;
 
+    /* A tap only changes focus; a hold changes the receiver topology. */
+    if (gScanStateDir != SCAN_OFF)
+        CHFRSCANNER_Stop();
+
     if (gEeprom.DUAL_WATCH != DUAL_WATCH_OFF ||
         gEeprom.CROSS_BAND_RX_TX != CROSS_BAND_OFF)
     {
@@ -542,6 +548,7 @@ uint8_t CLEARUI_QuickSubCount(void)
         case CLEARUI_QUICK_TEMP_SKIP:
             return gClearUIQuickContext == CLEARUI_QUICK_CONTEXT_SCAN ? 0 : 2;
         case CLEARUI_QUICK_SCAN_DIRECTION:return 2;
+        case CLEARUI_QUICK_SCAN_WATCH: return 2;
         default:                      return 0;
     }
 }
@@ -606,6 +613,8 @@ static uint8_t CLEARUI_QuickCurrentSelection(void)
                    MR_GetChannelAttributes(gTxVfo->CHANNEL_SAVE)->exclude;
         case CLEARUI_QUICK_SCAN_DIRECTION:
             return gScanStateDir == SCAN_FWD;
+        case CLEARUI_QUICK_SCAN_WATCH:
+            return gClearUIScanWatch;
         default:
             return 0;
     }
@@ -847,6 +856,9 @@ static void CLEARUI_QuickApply(void)
         case CLEARUI_QUICK_SCAN_STOP:
             if (gScanStateDir != SCAN_OFF)
                 CHFRSCANNER_Stop();
+            break;
+        case CLEARUI_QUICK_SCAN_WATCH:
+            gClearUIScanWatch = gClearUIQuickSubSelection != 0;
             break;
         default:
             break;

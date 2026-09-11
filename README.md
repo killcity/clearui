@@ -4,10 +4,11 @@ A community-developed interface for the **Quansheng UV-K1**, based on
 [F4HWN Fusion 6.0.0](https://github.com/armel/uv-k1-k5v3-firmware-custom/releases/tag/v6.0.0).
 An independent, experimental fork—not an official F4HWN release.
 
-**This branch is the C10 multiboot test candidate, not the published C8c release.**
+**This branch contains the C10a multiboot and optional scan/watch update.**
 It adds Fusion 6 multiboot and separate configuration banks while retaining the
 ClearUI interface and HF listening mode. Read [MULTIBOOT.md](MULTIBOOT.md) for
 installation, the required C10 CHIRP module, and legacy-memory migration.
+See [C10a release notes](RELEASE-C10a.md) for scanning controls and tradeoffs.
 
 > [!WARNING]
 > **Use at your own risk.** This firmware can brick your radio, erase calibration
@@ -38,12 +39,13 @@ See [more display layouts](images/clearui-vfo-gallery.png).
 
 ## Status and supported hardware
 
-**C10 is an unflashed multiboot test candidate for UV-K1.** The upstream repository also
+**C10a is an experimental release for UV-K1.** The upstream repository also
 targets UV-K5 V3, but this fork's community build is not claimed tested on that
 model. Do **not** flash it onto an older UV-K5/UV-K6 with the DP32G030 MCU.
 
-Both ClearUI and Fusion builds and all 13 host-side regression suites pass locally.
-Earlier iterations have been tried on a UV-K1, but C10 has not completed a hardware-validation cycle.
+Both ClearUI and Fusion builds and all 14 host-side regression suites pass locally.
+The user reports successful UV-K1 multiboot and scan/watch use, but comprehensive
+hardware validation has not been completed.
 The known B-VFO signal-meter problem in dual watch remains under investigation.
 Passing host tests does not establish RF performance or hardware safety.
 

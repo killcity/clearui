@@ -158,6 +158,7 @@ enum {KEY_UP, KEY_DOWN, KEY_PTT, KEY_MENU, KEY_STAR, KEY_EXIT};
 enum {BEEP_1KHZ_60MS_OPTIONAL, BEEP_500HZ_60MS_DOUBLE_BEEP_OPTIONAL};
 enum {SCAN_OFF, SCAN_FWD};
 static int gBeepToPlay, gScanStateDir;
+static bool gClearUIScanWatch;
 static bool gClearUIEditingListNames, gClearUIListNameEditor;
 static bool gClearUIScanMemoryMode, gClearUIListPickOnly;
 static uint8_t gClearUIListNameCursor, gClearUIScanSelection;

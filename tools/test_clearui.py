@@ -11,6 +11,7 @@ CHECKS = [
     ['test_clearui_c10_driver.py'],
     ['test_clearui_multiboot.py'],
     ['test_clearui_groups.py'],
+    ['test_clearui_scan_watch.py'],
     ['test_clearui_algorithms.py'],
     ['test_clearui_storage.py'],
     ['test_clearui_receive_only.py'],

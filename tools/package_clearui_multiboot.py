@@ -12,6 +12,9 @@ import subprocess
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("output", type=Path, help="New package directory (must not exist)")
+    parser.add_argument("--firmware-name", default="ClearUI-C10-test-UV-K1.bin")
+    parser.add_argument("--edition", default="ClearUI C10-test")
+    parser.add_argument("--build-note", default="")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[1]
     if subprocess.check_output(["git", "status", "--porcelain"], cwd=root).strip():
@@ -28,13 +31,15 @@ def main():
     commit = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
     args.output.mkdir(parents=True, exist_ok=False)
     copies = {
-        binary: "ClearUI-C10-test-UV-K1.bin",
+        binary: args.firmware_name,
         root / "chirp/clearui-multiboot-c10.py": "clearui-multiboot-c10.py",
         root / "tools/migrate_clearui_multiboot.py": "migrate_clearui_multiboot.py",
         root / "chirp/COPYING": "CHIRP-COPYING",
     }
     for name in ("MULTIBOOT.md", "SAFETY.md", "LICENSE", "NOTICE"):
         copies[root / name] = name
+    if (root / "RELEASE-C10a.md").exists():
+        copies[root / "RELEASE-C10a.md"] = "RELEASE-C10a.md"
     for source, name in copies.items():
         shutil.copy2(source, args.output / name)
     shutil.copytree(root / "LICENSES", args.output / "LICENSES")
@@ -42,7 +47,8 @@ def main():
                     "-o", str(args.output.resolve() / "clearui-source.tar.gz"), "HEAD"],
                    cwd=root, check=True)
     (args.output / "BUILD.json").write_text(json.dumps({
-        "edition": "ClearUI C10-test", "upstream": "Fusion v6.0.0",
+        "edition": args.edition, "upstream": "Fusion v6.0.0",
+        "build_note": args.build_note,
         "source_commit": commit, "binary_bytes": len(data),
         "target": "UV-K1", "hardware_validated": False,
         "compiler": "Arm GNU Toolchain 13.3.Rel1", "preset": "ClearUI",

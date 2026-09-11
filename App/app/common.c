@@ -31,7 +31,17 @@ void COMMON_SwitchVFOs()
 {
 #ifdef ENABLE_CLEAR_UI
     if (gScanStateDir != SCAN_OFF)
-        CHFRSCANNER_Stop();
+    {
+        /* Selection changes controls only; do not retune or interrupt audio. */
+        gEeprom.TX_VFO ^= 1;
+        gTxVfo = &gEeprom.VfoInfo[gEeprom.TX_VFO];
+        gInputBoxIndex = 0;
+        gHasVfoBackup = false;
+        gVfoConfigureMode = VFO_CONFIGURE_NONE;
+        gRequestDisplayScreen = DISPLAY_MAIN;
+        gUpdateDisplay = true;
+        return;
+    }
 #endif
 #ifdef ENABLE_SCAN_RANGES    
     gScanRangeStart = 0;

@@ -553,7 +553,11 @@ static void HandleReceive(void)
         goto Skip;
     }
 
-    if (gScanStateDir != SCAN_OFF && IS_FREQ_CHANNEL(gNextMrChannel))
+    if (gScanStateDir != SCAN_OFF && IS_FREQ_CHANNEL(gNextMrChannel)
+#ifdef ENABLE_CLEAR_UI
+        && !CHFRSCANNER_IsWatchingOther()
+#endif
+    )
     { // we are scanning in the frequency mode
         if (g_SquelchLost)
             return;
@@ -695,15 +699,27 @@ Skip:
                 }
                 */
 
-                if(gEeprom.SCAN_RESUME_MODE < 81)
+                if(gEeprom.SCAN_RESUME_MODE < 81
+#ifdef ENABLE_CLEAR_UI
+                   || CHFRSCANNER_IsWatchingOther()
+#endif
+                )
                 {
-                    if(gEeprom.SCAN_RESUME_MODE == 0)
+                    if(gEeprom.SCAN_RESUME_MODE == 0
+#ifdef ENABLE_CLEAR_UI
+                       && !CHFRSCANNER_IsWatchingOther()
+#endif
+                    )
                     {
                         CHFRSCANNER_Stop();
                     }
                     else
                     {
                         gScanPauseDelayIn_10ms = gEeprom.SCAN_RESUME_MODE * (250 / 10); // 250ms
+#ifdef ENABLE_CLEAR_UI
+                        if (CHFRSCANNER_IsWatchingOther())
+                            gScanPauseDelayIn_10ms = 25;
+#endif
                         gScheduleScanListen    = false;
                     }
                 }

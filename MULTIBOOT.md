@@ -1,8 +1,9 @@
-# ClearUI C10 multiboot test candidate
+# ClearUI C10-series multiboot
 
-For the stock Quansheng UV-K1, based on upstream Fusion v6.0.0. This is a local
-test candidate: builds and host tests pass, but no C10 hardware boot, firmware
-switch, or CHIRP transfer has been validated. Do not treat it as a stable release.
+For the stock Quansheng UV-K1, based on upstream Fusion v6.0.0. Builds and host
+tests pass, and initial user testing reports successful boot, firmware switching
+and scanning. Comprehensive hardware and CHIRP write-isolation validation remain
+incomplete. A regular GitHub release does not mean certified or guaranteed stable.
 Never use this image on older DP32G030 UV-K5/UV-K6 radios.
 
 ## What is separate, and what is shared
@@ -28,7 +29,7 @@ Do not replace the shared logo expecting it to affect ClearUI only.
 3. Establish official Fusion 6.0.0 as the working Main firmware, following its
    upstream instructions. Confirm its multiboot selector works before proceeding.
 4. Through the UV Studio multiboot slot workflow, upload the raw
-   `ClearUI-C10-test-UV-K1.bin` into an unused user slot (1–4). Do not overwrite
+   release's UV-K1 `.bin` into an unused user slot (1–4). Do not overwrite
    protected Main or a slot you need to keep. This file is an application binary,
    not a complete external-flash image and not a bootloader.
 5. Hold Menu at power-on, select ClearUI and allow the restore to finish. Verify
@@ -38,7 +39,7 @@ Do not replace the shared logo expecting it to affect ClearUI only.
    **Quansheng → UV-K1 & UV-K5 V3 (ClearUI Multiboot C10)**. The model name is
    inherited from upstream; this candidate is not claimed validated on UV-K5 V3.
 
-These steps still need an end-to-end hardware trial. If the slot workflow rejects
+These steps still need comprehensive end-to-end validation. If the slot workflow rejects
 the file or the radio reports a different firmware identity, stop; do not bypass
 the checks or force a write. Use upstream recovery instructions if boot fails.
 

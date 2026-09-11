@@ -17,6 +17,7 @@ uint16_t gBatteryVoltageAverage = 800;
 static unsigned fakePercent = 75;
 unsigned int BATTERY_VoltsToPercent(unsigned int voltage) {(void)voltage; return fakePercent;}
 int8_t gScanStateDir;
+uint8_t CHFRSCANNER_Owner(void) { return 1; }
 center_line_t center_line;
 FUNCTION_Type_t gCurrentFunction;
 GUI_DisplayType_t gScreenToDisplay;

@@ -23,6 +23,26 @@
 int8_t            gScanStateDir;
 bool              gScanKeepResult;
 bool              gScanPauseMode;
+#ifdef ENABLE_CLEAR_UI
+static uint8_t scanOwner;
+static bool scanWatchingOther;
+/* Session preference: reset to full-speed scanning at power-on. */
+bool gClearUIScanWatch = false;
+
+uint8_t CHFRSCANNER_Owner(void) { return scanOwner; }
+bool CHFRSCANNER_IsWatchingOther(void)
+{
+    return gScanStateDir != SCAN_OFF && scanWatchingOther;
+}
+
+/* RX ownership belongs to the scan scheduler, not the selected controls. */
+static void ScanSelectReceiver(uint8_t vfo)
+{
+    gEeprom.RX_VFO = vfo;
+    gRxVfo = &gEeprom.VfoInfo[vfo];
+    gCurrentVfo = gRxVfo;
+}
+#endif
 
 #ifdef ENABLE_SCAN_RANGES
 uint32_t          gScanRangeStart;
@@ -200,6 +220,9 @@ bool CHFRSCANNER_HasScanRangeExcludedOrdinal(uint32_t first_ordinal, uint32_t la
 #if defined(ENABLE_FEAT_F4HWN_SCAN_SUBAUDIBLE) && ENABLE_FEAT_F4HWN_SCAN_SUBAUDIBLE
 void CHFRSCANNER_UpdateCssDetection(void)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (CHFRSCANNER_IsWatchingOther()) return;
+#endif
     if (!gScanRangeStart || !FUNCTION_IsRx())
     {
         gScanRangeCssType    = CODE_TYPE_OFF;
@@ -757,9 +780,11 @@ static void SetMemScanProgressChannel(uint16_t channel)
 void CHFRSCANNER_Start(const bool storeBackupSettings, const int8_t scan_direction)
 {
 #ifdef ENABLE_CLEAR_UI
-    if (IS_MR_CHANNEL(gEeprom.ScreenChannel[gEeprom.TX_VFO]))
+    const uint8_t owner = !storeBackupSettings && gScanStateDir != SCAN_OFF
+                        ? scanOwner : gEeprom.TX_VFO;
+    if (IS_MR_CHANNEL(gEeprom.ScreenChannel[owner]))
     {
-        CLEARUI_SyncGroup();
+        gEeprom.SCAN_LIST_DEFAULT = CLEARUI_GetGroup(owner);
         if (!RADIO_CheckValidList(gEeprom.SCAN_LIST_DEFAULT))
         {
             if (gScanStateDir != SCAN_OFF)
@@ -776,7 +801,18 @@ void CHFRSCANNER_Start(const bool storeBackupSettings, const int8_t scan_directi
         gScanKeepResult = false;
     }
     
+#ifdef ENABLE_CLEAR_UI
+    if (storeBackupSettings || gScanStateDir == SCAN_OFF)
+    {
+        RADIO_SelectVfos();
+        scanOwner = gEeprom.RX_VFO;
+    }
+    else
+        ScanSelectReceiver(scanOwner);
+    scanWatchingOther = false;
+#else
     RADIO_SelectVfos();
+#endif
     CHFRSCANNER_AbortActiveReception();
 
     gNextMrChannel   = gRxVfo->CHANNEL_SAVE;
@@ -839,32 +875,32 @@ void CHFRSCANNER_ManualResume(const int8_t scan_direction)
     gScheduleScanListen    = false;
 }
 
-/*
 void CHFRSCANNER_ContinueScanning(void)
 {
-    if (IS_FREQ_CHANNEL(gNextMrChannel))
+#ifdef ENABLE_CLEAR_UI
+    if (scanWatchingOther)
     {
-        if (gCurrentFunction == FUNCTION_INCOMING)
+        if (gCurrentFunction == FUNCTION_INCOMING && gCurrentCodeType == CODE_TYPE_OFF)
+        {
             APP_StartListening(gMonitor ? FUNCTION_MONITOR : FUNCTION_RECEIVE);
-        else
-            NextFreqChannel();  // switch to next frequency
+            return;
+        }
+        if (gCurrentFunction == FUNCTION_RECEIVE || gCurrentFunction == FUNCTION_MONITOR)
+            return;
+        scanWatchingOther = false;
+        ScanSelectReceiver(scanOwner);
+        RADIO_SetupRegisters(true);
+#ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER
+        ScanFastResetState();
+#endif
+        /* Resume the scan cursor, never advance the fixed VFO's channel. */
+        IS_FREQ_CHANNEL(gNextMrChannel) ? NextFreqChannel() : NextMemChannel();
+        gScanPauseMode = false;
+        gRxReceptionMode = RX_MODE_NONE;
+        gScheduleScanListen = false;
+        return;
     }
-    else
-    {
-        if (gCurrentCodeType == CODE_TYPE_OFF && gCurrentFunction == FUNCTION_INCOMING)
-            APP_StartListening(gMonitor ? FUNCTION_MONITOR : FUNCTION_RECEIVE);
-        else
-            NextMemChannel();    // switch to next channel
-    }
-    
-    gScanPauseMode      = false;
-    gRxReceptionMode    = RX_MODE_NONE;
-    gScheduleScanListen = false;
-}
-*/
-
-void CHFRSCANNER_ContinueScanning(void)
-{
+#endif
 #ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER
     if (scanFastLastFullTuneCandidate &&
         gCurrentFunction != FUNCTION_INCOMING &&
@@ -884,6 +920,28 @@ void CHFRSCANNER_ContinueScanning(void)
     }
     else
     {
+#ifdef ENABLE_CLEAR_UI
+        if (gCurrentFunction == FUNCTION_RECEIVE || gCurrentFunction == FUNCTION_MONITOR)
+        {
+            /* Explicit time-based resume can advance the scan, but a plain
+             * A/B key selection never enters this path or interrupts audio. */
+            CHFRSCANNER_AbortActiveReception();
+        }
+        if (gClearUIScanWatch && gEeprom.DUAL_WATCH != DUAL_WATCH_OFF)
+        {
+            scanWatchingOther = true;
+            ScanSelectReceiver(!scanOwner);
+            RADIO_SetupRegisters(true);
+            /* Full tune and 200 ms dwell: squelch/tone handling remains in
+             * the normal receiver path, not an RSSI-only audio decision. */
+            gScanPauseDelayIn_10ms = 20;
+            gScanPauseMode = false;
+            gRxReceptionMode = RX_MODE_NONE;
+            gScheduleScanListen = false;
+            gUpdateDisplay = true;
+            return;
+        }
+#endif
         IS_FREQ_CHANNEL(gNextMrChannel) ? NextFreqChannel() : NextMemChannel();
     }
 
@@ -894,6 +952,16 @@ void CHFRSCANNER_ContinueScanning(void)
 
 void CHFRSCANNER_Found(void)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (scanWatchingOther)
+    {
+        /* Fixed-channel audio must not become the scan's saved result. */
+        gScanPauseDelayIn_10ms = 0;
+        gScanPauseMode = true;
+        gScheduleScanListen = false;
+        return;
+    }
+#endif
 #ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER
     // After a real reception the BK4819 AGC has shifted, biasing the next
     // few RSSI readings high. Reset the precheck state so it warms up from
@@ -969,6 +1037,11 @@ void CHFRSCANNER_Found(void)
 
 void CHFRSCANNER_Stop(void)
 {
+#ifdef ENABLE_CLEAR_UI
+    if (gScanStateDir == SCAN_OFF) return;
+    ScanSelectReceiver(scanOwner);
+    scanWatchingOther = false;
+#endif
     if(initialCROSS_BAND_RX_TX != CROSS_BAND_OFF) {
         gEeprom.CROSS_BAND_RX_TX = initialCROSS_BAND_RX_TX;
         initialCROSS_BAND_RX_TX = CROSS_BAND_OFF;
@@ -1005,6 +1078,10 @@ void CHFRSCANNER_Stop(void)
         SETTINGS_WriteCurrentState();
     #endif
 
+    #ifdef ENABLE_CLEAR_UI
+        RADIO_SelectVfos();
+        CLEARUI_SyncGroup();
+    #endif
     RADIO_SetupRegisters(true);
     gUpdateDisplay = true;
 }

@@ -524,11 +524,11 @@ static void CLEARUI_DrawScanHeader(void)
 
     memset(gStatusLine, 0, sizeof(gStatusLine));
     if (IS_MR_CHANNEL(gNextMrChannel))
-        sprintf(text, "%.11s %s",
+        sprintf(text, "%c %.9s %s", CHFRSCANNER_Owner() ? 'B' : 'A',
                 CLEARUI_ScanListName(gEeprom.SCAN_LIST_DEFAULT),
                 gScanStateDir > 0 ? "Up" : "Down");
     else
-        sprintf(text, "VFO %s", gScanStateDir > 0 ? "Up" : "Down");
+        sprintf(text, "VFO %c %s", CHFRSCANNER_Owner() ? 'B' : 'A', gScanStateDir > 0 ? "Up" : "Down");
 
     GUI_DisplaySmallest(text, 24, 1, true, true);
     CLEARUI_DrawStatusPill("SCAN");

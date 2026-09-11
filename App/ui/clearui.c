@@ -59,7 +59,8 @@ static const char *const QUICK_LABELS[CLEARUI_QUICK_COUNT] =
     "Enter frequency",
     "VOX",
     "Reverse",
-    "HF Listen"
+    "HF Listen",
+    "Watch other VFO"
 };
 
 static void UI_CLEARUI_InvertTile(uint8_t x1, uint8_t x2, uint8_t first, uint8_t last)
@@ -288,6 +289,7 @@ static void UI_CLEARUI_QuickSubLabel(uint8_t selection, char *label)
             break;
         }
         case CLEARUI_QUICK_TEMP_SKIP:
+        case CLEARUI_QUICK_SCAN_WATCH:
             strcpy(label, OFF_ON[selection]);
             break;
         case CLEARUI_QUICK_SCAN_DIRECTION:
