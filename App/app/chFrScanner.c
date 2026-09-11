@@ -17,6 +17,9 @@
 #include "functions.h"
 #include "misc.h"
 #include "settings.h"
+#ifdef ENABLE_CLEAR_UI
+#include "frequencies.h"
+#endif
 #include "ui/main.h"
 //#include "debugging.h"
 
@@ -290,6 +293,59 @@ static void CHFRSCANNER_AbortActiveReception(void)
 }
 
 #ifdef ENABLE_CLEAR_UI
+bool CHFRSCANNER_EditOtherVfo(int8_t direction, bool pressed)
+{
+    static uint8_t dirtyFrequencyVfo = 2;
+    if (!pressed && dirtyFrequencyVfo < 2)
+    {
+        VFO_Info_t *vfo = &gEeprom.VfoInfo[dirtyFrequencyVfo];
+        SETTINGS_SaveChannel(vfo->CHANNEL_SAVE, dirtyFrequencyVfo, vfo, 1);
+        dirtyFrequencyVfo = 2;
+    }
+    if (gScanStateDir == SCAN_OFF || gEeprom.TX_VFO == scanOwner)
+        return false;
+    if (!pressed) return true;
+
+    const uint8_t selected = gEeprom.TX_VFO;
+    const uint16_t channel = gEeprom.ScreenChannel[selected];
+    if (IS_MR_CHANNEL(channel))
+    {
+        const uint16_t next = CLEARUI_FindGroupChannel(channel + direction,
+                                      direction, CLEARUI_GetGroup(selected));
+        if (next == 0xFFFF || next == channel) return true;
+        gEeprom.MrChannel[selected] = next;
+        gEeprom.ScreenChannel[selected] = next;
+        /* Reload only this VFO's data, without the global retune flags. */
+        RADIO_ConfigureChannel(selected, VFO_CONFIGURE_RELOAD);
+        gRequestSaveVFO = true;
+    }
+    else if (IS_FREQ_CHANNEL(channel))
+    {
+        const uint32_t frequency = APP_SetFrequencyByStep(gTxVfo, direction);
+        if (RX_freq_check(frequency) < 0) return true;
+        gTxVfo->freq_config_RX.Frequency = frequency;
+        RADIO_ApplyOffset(gTxVfo);
+        RADIO_ConfigureSquelchAndOutputPower(gTxVfo);
+        dirtyFrequencyVfo = selected;
+    }
+    else return true;
+
+    gVFO_RSSI_bar_level[selected] = 0;
+    if (scanWatchingOther)
+    {
+        /* Only retune when hardware is already on the edited side. Scanner
+         * audio on the other side must not be interrupted by browsing. */
+        CHFRSCANNER_AbortActiveReception();
+        RADIO_SetupRegisters(true);
+        gScanPauseDelayIn_10ms = 20;
+        gScanPauseMode = false;
+        gRxReceptionMode = RX_MODE_NONE;
+        gScheduleScanListen = false;
+    }
+    gUpdateDisplay = true;
+    return true;
+}
+
 bool CHFRSCANNER_PauseForPTT(void)
 {
     if (gScanStateDir == SCAN_OFF || gEeprom.TX_VFO == scanOwner)

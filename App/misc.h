@@ -201,6 +201,9 @@ extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     extern uint8_t            gSetting_set_eot;
     extern uint8_t            gSetting_set_lck;
     extern bool               gSetting_set_met;
+#ifdef ENABLE_CLEAR_UI
+    extern uint8_t            gSetting_rx_frame; // 0 Off, 1 Dotted, 2 Inverted
+#endif
     extern bool               gSetting_set_gui;
     #ifdef ENABLE_FEAT_F4HWN_AUDIO
         extern uint8_t            gSetting_set_audio_fm;

@@ -46,12 +46,27 @@ int main(void) {
     uint8_t settings[8];
     memset(settings, 0xFF, sizeof(settings));
     assert(!SETTINGS_ClearUIMeterStyle(settings)); // fresh/full reset: Spine
+    assert(!SETTINGS_ClearUIRxFrame(settings)); // fresh/full reset: no frame
     settings[0] = 0; // Saved block: even 0xFF in byte 5 remains a valid choice.
     for (unsigned value = 0; value < 256; ++value) {
         settings[5] = value;
         assert(SETTINGS_ClearUIMeterStyle(settings) == ((value & 0x40) != 0));
+        assert(SETTINGS_ClearUIRxFrame(settings) == ((value & 0x20) != 0));
     }
     uint8_t data[8] = {1,2,3,4,5,6,7,8};
+    for (unsigned mode = 0; mode < 4; ++mode) {
+        memset(settings, 0x55, sizeof(settings));
+        SETTINGS_SaveClearUIRxFrame(settings, mode);
+        assert(SETTINGS_ClearUIRxFrame(settings) == (mode < 3 ? mode : 0));
+        assert((settings[5] & ~0x20) == (0x55 & ~0x20));
+        for (unsigned i = 0; i < 8; ++i)
+            if (i != 3 && i != 5) assert(settings[i] == 0x55);
+    }
+    // The tag alone cannot enable inversion; old saved On remains Dotted.
+    settings[3] = 0xA2; settings[5] &= ~0x20;
+    assert(SETTINGS_ClearUIRxFrame(settings) == 0);
+    settings[5] |= 0x20; settings[3] = 0xFF;
+    assert(SETTINGS_ClearUIRxFrame(settings) == 1);
     assert(sizeof(ChannelAttributes_t) == 2);
     EEPROM_WriteBuffer(0xD000, data, sizeof(data));
     assert(flash_writes == 1 && last_address == 0xD000);
@@ -99,6 +114,8 @@ def main():
     routines += function("App/radio.c", "RADIO_CheckValidChannel")
     routines += function("App/settings.c", "SETTINGS_UpdateChannel")
     routines += function("App/settings.c", "SETTINGS_ClearUIMeterStyle")
+    routines += function("App/settings.c", "SETTINGS_ClearUIRxFrame")
+    routines += function("App/settings.c", "SETTINGS_SaveClearUIRxFrame")
     with tempfile.TemporaryDirectory(prefix="clearui-storage-") as tmp:
         source, binary = Path(tmp) / "test.c", Path(tmp) / "test"
         source.write_text(PREAMBLE + routines + TESTS)

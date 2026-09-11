@@ -1142,6 +1142,15 @@ static void MAIN_Key_UP_DOWN(bool bKeyPressed, bool bKeyHeld, int8_t Direction)
         gHasVfoBackup = false;
     }
 
+#ifdef ENABLE_CLEAR_UI
+    if (CHFRSCANNER_EditOtherVfo(Direction, bKeyPressed))
+    {
+        if (bKeyPressed && !bKeyHeld)
+            gBeepToPlay = BEEP_1KHZ_60MS_OPTIONAL;
+        return;
+    }
+#endif
+
     if (bKeyHeld || !bKeyPressed) { // key held or released
         if (!bKeyPressed) {
             if (!bKeyHeld || IS_FREQ_CHANNEL(Channel))

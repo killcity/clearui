@@ -4,11 +4,11 @@ A community-developed interface for the **Quansheng UV-K1**, based on
 [F4HWN Fusion 6.0.0](https://github.com/armel/uv-k1-k5v3-firmware-custom/releases/tag/v6.0.0).
 An independent, experimental fork—not an official F4HWN release.
 
-**This branch contains C10b: multiboot, optional scan/watch and PTT scan resume.**
+**This branch contains C10c: independent channel browsing and optional RX highlights.**
 It adds Fusion 6 multiboot and separate configuration banks while retaining the
 ClearUI interface and HF listening mode. Read [MULTIBOOT.md](MULTIBOOT.md) for
 installation, the required C10 CHIRP module, and legacy-memory migration.
-See [C10b release notes](RELEASE-C10b.md) for PTT behavior and scanning tradeoffs.
+See [C10c release notes](RELEASE-C10c.md) for browsing, RX highlights and scanning tradeoffs.
 
 > [!WARNING]
 > **Use at your own risk.** This firmware can brick your radio, erase calibration
@@ -36,17 +36,19 @@ See [more display layouts](images/clearui-vfo-gallery.png).
 - Waterfall view with its own quick menu.
 - Explicit per-channel receive-only protection and an extended CHIRP module.
 - A ClearUI startup logo and icon/voltage/percentage/combined battery readouts.
+- Browse the selected VFO's group while the other VFO continues scanning.
+- Optional dotted or inverted receive highlighting under Display → RX frame.
 
 ## Status and supported hardware
 
-**C10b is an experimental release for UV-K1.** The upstream repository also
+**C10c is an experimental release for UV-K1.** The upstream repository also
 targets UV-K5 V3, but this fork's community build is not claimed tested on that
 model. Do **not** flash it onto an older UV-K5/UV-K6 with the DP32G030 MCU.
 
 Both ClearUI and Fusion builds and all 14 host-side regression suites pass locally.
 The user reports successful UV-K1 multiboot and scan/watch use, but comprehensive
 hardware validation has not been completed.
-The new C10b PTT-resume path has passed host tests but awaits on-radio validation.
+The new C10c browsing and RX-highlight paths have passed host tests but await on-radio validation.
 The known B-VFO signal-meter problem in dual watch remains under investigation.
 Passing host tests does not establish RF performance or hardware safety.
 

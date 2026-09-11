@@ -130,6 +130,9 @@ enum
     MENU_SET_INV,
     MENU_SET_LCK,
     MENU_SET_MET,
+#ifdef ENABLE_CLEAR_UI
+    MENU_RX_FRAME,
+#endif
     MENU_SET_GUI,
     MENU_SET_TMR,
     #ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER

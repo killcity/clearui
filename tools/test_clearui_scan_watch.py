@@ -32,6 +32,16 @@ def main():
 #define scan_pause_delay_in_5_10ms 10
 typedef struct { unsigned Frequency; } Freq;
 typedef struct { unsigned CHANNEL_SAVE; Freq freq_config_RX; } VFO;
+typedef VFO VFO_Info_t;
+static bool gRequestSaveVFO;
+static unsigned gVFO_RSSI_bar_level[2], groupResult, requestedGroup, channelSaves;
+static bool invalidFrequency;
+static unsigned CLEARUI_GetGroup(unsigned v) {return v+3;}
+static unsigned CLEARUI_FindGroupChannel(unsigned start,int direction,unsigned group) {
+ (void)start;(void)direction;requestedGroup=group;return groupResult;
+}
+static unsigned APP_SetFrequencyByStep(VFO *v,int direction) {return v->freq_config_RX.Frequency+direction*1250;}
+static int RX_freq_check(unsigned frequency) {(void)frequency;return invalidFrequency?-1:0;}
 static struct { unsigned RX_VFO, TX_VFO, DUAL_WATCH, CROSS_BAND_RX_TX;
  unsigned SCAN_RESUME_MODE, MrChannel[2], ScreenChannel[2]; VFO VfoInfo[2]; } gEeprom;
 static VFO *gRxVfo,*gTxVfo,*gCurrentVfo;
@@ -54,7 +64,7 @@ static void RADIO_ConfigureChannel(unsigned v,unsigned mode) {(void)mode;savedVf
 static void SETTINGS_SaveVfoIndices(void) {}
 static void RADIO_ApplyOffset(VFO *v) {(void)v;}
 static void RADIO_ConfigureSquelchAndOutputPower(VFO *v) {(void)v;}
-static void SETTINGS_SaveChannel(unsigned ch,unsigned v,VFO *p,unsigned mode) {(void)ch;(void)p;(void)mode;savedVfo=v;}
+static void SETTINGS_SaveChannel(unsigned ch,unsigned v,VFO *p,unsigned mode) {(void)ch;(void)p;(void)mode;savedVfo=v;++channelSaves;}
 static void CLEARUI_SyncGroup(void) {++groupSyncs;}
 static void CHFRSCANNER_AbortActiveReception(void) {gCurrentFunction=FUNCTION_FOREGROUND;}
 void CHFRSCANNER_Found(void);
@@ -63,7 +73,7 @@ static void APP_StartListening(unsigned f) {gCurrentFunction=f;CHFRSCANNER_Found
     scanner = 'App/app/chFrScanner.c'
     for name in ['CHFRSCANNER_Owner', 'CHFRSCANNER_IsWatchingOther', 'ScanSelectReceiver',
                  'CHFRSCANNER_Found', 'CHFRSCANNER_ContinueScanning', 'CHFRSCANNER_Stop',
-                 'CHFRSCANNER_PauseForPTT', 'CHFRSCANNER_ResumeAfterPTT']:
+                 'CHFRSCANNER_PauseForPTT', 'CHFRSCANNER_ResumeAfterPTT', 'CHFRSCANNER_EditOtherVfo']:
         source += function(scanner, name)
     source += function('App/app/common.c', 'COMMON_SwitchVFOs')
     source += r'''
@@ -100,6 +110,34 @@ static void begin(unsigned owner, bool memory) {
  tunes=steps=groupSyncs=0;savedVfo=99;
 }
 int main(void) {
+ for(unsigned owner=0;owner<2;owner++) for(unsigned watch=0;watch<2;watch++) {
+  begin(owner,true);gClearUIScanWatch=watch;
+  assert(!CHFRSCANNER_EditOtherVfo(1,true));
+  COMMON_SwitchVFOs();
+  if(watch) CHFRSCANNER_ContinueScanning();
+  unsigned cursor=gNextMrChannel,before=tunes;
+  groupResult=42;gRequestSaveVFO=false;
+  assert(CHFRSCANNER_EditOtherVfo(1,true));
+  assert(gEeprom.ScreenChannel[!owner]==42 && requestedGroup==!owner+3);
+  assert(gNextMrChannel==cursor && gScanStateDir==1 && gRequestSaveVFO);
+  assert(!gFlagReconfigureVfos && gVfoConfigureMode==VFO_CONFIGURE_NONE);
+  assert(tunes==before+watch && gEeprom.RX_VFO==(watch?!owner:owner));
+  groupResult=0xFFFF;before=tunes;
+  assert(CHFRSCANNER_EditOtherVfo(-1,true));
+  assert(gEeprom.ScreenChannel[!owner]==42 && tunes==before);
+  groupResult=9;assert(CHFRSCANNER_EditOtherVfo(-1,true));
+  assert(gEeprom.ScreenChannel[!owner]==9 && gNextMrChannel==cursor);
+  assert(CHFRSCANNER_EditOtherVfo(-1,false));
+  gEeprom.ScreenChannel[!owner]=1024;gTxVfo->CHANNEL_SAVE=1024;
+  gTxVfo->freq_config_RX.Frequency=14500000;channelSaves=0;
+  assert(CHFRSCANNER_EditOtherVfo(1,true));
+  assert(CHFRSCANNER_EditOtherVfo(1,true));
+  assert(gTxVfo->freq_config_RX.Frequency==14502500 && !channelSaves);
+  assert(CHFRSCANNER_EditOtherVfo(1,false));assert(channelSaves==1 && savedVfo==!owner);
+  invalidFrequency=true;assert(CHFRSCANNER_EditOtherVfo(1,true));
+  assert(gTxVfo->freq_config_RX.Frequency==14502500);invalidFrequency=false;
+  CHFRSCANNER_EditOtherVfo(1,false);assert(channelSaves==1);
+ }
  for(unsigned owner=0;owner<2;owner++) for(unsigned memory=0;memory<2;memory++) {
   begin(owner,memory);
   COMMON_SwitchVFOs();

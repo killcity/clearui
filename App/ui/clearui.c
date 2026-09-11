@@ -95,7 +95,7 @@ static const uint8_t MENU_NAME_IDS[] =
     MENU_AM_FIX,
 #endif
 #ifdef ENABLE_FEAT_F4HWN
-    MENU_SET_INV, MENU_SET_MET, MENU_SET_GUI, MENU_SET_TMR,
+    MENU_SET_INV, MENU_SET_MET, MENU_RX_FRAME, MENU_SET_GUI, MENU_SET_TMR,
 #ifdef ENABLE_FEAT_F4HWN_AUDIO
     MENU_SET_AUD,
 #endif
@@ -148,7 +148,7 @@ static const char MENU_NAMES[] =
     "AM Noise Control\0"
 #endif
 #ifdef ENABLE_FEAT_F4HWN
-    "Invert display\0Meter style\0Display style\0Activity timer\0"
+    "Invert display\0Meter style\0RX frame\0Display style\0Activity timer\0"
 #ifdef ENABLE_FEAT_F4HWN_AUDIO
     "Receive audio\0"
 #endif

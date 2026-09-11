@@ -49,6 +49,22 @@ static void SETTINGS_LoadEepromDtmf(uint32_t addr, char *dest, size_t size, cons
 }
 
 #ifdef ENABLE_CLEAR_UI
+static uint8_t SETTINGS_ClearUIRxFrame(const uint8_t *block)
+{
+    for (uint8_t i = 0; i < 8; ++i)
+        if (block[i] != 0xFF)
+            return !(block[5] & 0x20) ? 0 : block[3] == 0xA2 ? 2 : 1;
+    return false;
+}
+
+static void SETTINGS_SaveClearUIRxFrame(uint8_t *block, uint8_t mode)
+{
+    // Keep the existing enable bit. A tagged, formerly unused byte selects
+    // inversion; old On settings remain Dotted, including erased byte 3.
+    block[5] = (block[5] & ~0x20) | (mode == 1 || mode == 2 ? 0x20 : 0);
+    block[3] = mode == 2 ? 0xA2 : 0xFF;
+}
+
 static bool SETTINGS_ClearUIMeterStyle(const uint8_t *block)
 {
     // An entirely erased settings block is a fresh/full-reset configuration.
@@ -507,6 +523,7 @@ gEeprom.FreqChannel[1]   = IS_FREQ_CHANNEL(Data16[5]) ? Data16[5] : (FREQ_CHANNE
         gSetting_set_lck = (Data[2] < SET_LCK_LEN) ? Data[2] : SET_LCK_KEYS;
 #ifdef ENABLE_CLEAR_UI
         gSetting_set_met = SETTINGS_ClearUIMeterStyle(Data);
+        gSetting_rx_frame = SETTINGS_ClearUIRxFrame(Data);
 #else
         gSetting_set_met = (tmp >> 2) & 0x01;
 #endif
@@ -1158,6 +1175,10 @@ void SETTINGS_SaveSettings(void)
 
     State[2] = gSetting_set_lck;
     State[5] = ((tmp << 4) | (gSetting_set_ctr & 0x0F));
+#ifdef ENABLE_CLEAR_UI
+    // Previously unused bit, inside the current configuration bank.
+    SETTINGS_SaveClearUIRxFrame(State, gSetting_rx_frame);
+#endif
     State[6] = ((gSetting_set_tot << 4) | (gSetting_set_eot & 0x0F));
     uint8_t set_ptt_scn_sav = gSetting_set_ptt & 0x01;
 #ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER

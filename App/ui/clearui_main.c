@@ -705,6 +705,67 @@ static void CLEARUI_DrawInput(void)
     CLEARUI_DrawNameAt(text, 0, 16, 128);
 }
 
+static void CLEARUI_RxFrameDot(uint8_t x, uint8_t y)
+{
+    // Keep the existing edge-aligned lettering and meters untouched, with
+    // a one-pixel breathing space wherever the frame passes content.
+    for (int yy = (int)y - 1; yy <= (int)y + 1; ++yy)
+        for (int xx = (int)x - 1; xx <= (int)x + 1; ++xx)
+            if (xx >= 0 && xx < 128 && yy >= 0 && yy < 56 &&
+                (gFrameBuffer[yy / 8][xx] & (1u << (yy % 8))))
+                return;
+    UI_DrawPixelBuffer(gFrameBuffer, x, y, true);
+}
+
+static void CLEARUI_DrawRxFrame(void)
+{
+    if (!gSetting_rx_frame ||
+        (gCurrentFunction != FUNCTION_RECEIVE &&
+         gCurrentFunction != FUNCTION_MONITOR))
+        return;
+
+    uint8_t top = 0, bottom = 55;
+    if (CLEARUI_IsSingleBand())
+    {
+        // A single scan pane displays RX; otherwise it displays selection.
+        if (gScanStateDir == SCAN_OFF && gEeprom.RX_VFO != gEeprom.TX_VFO)
+            return;
+    }
+    else
+    {
+        const uint8_t split = gEeprom.TX_VFO == 0 ? 36 : 20;
+        if (gEeprom.RX_VFO == 0) bottom = split - 1;
+        else top = split;
+    }
+    if (gSetting_rx_frame == 2)
+    {
+        // Invert in place: typography, meter geometry and the status line
+        // remain unchanged. Two-pixel rounded corners match the RX frame.
+        for (uint8_t y = top; y <= bottom; ++y)
+        {
+            const uint8_t edge = MIN(y - top, bottom - y);
+            const uint8_t inset = edge == 0 ? 2 : edge == 1 ? 1 : 0;
+            for (uint8_t x = inset; x < 128 - inset; ++x)
+                gFrameBuffer[y / 8][x] ^= 1u << (y % 8);
+        }
+        return;
+    }
+    for (uint8_t x = 3; x < 125; x += 2)
+    {
+        CLEARUI_RxFrameDot(x, top);
+        CLEARUI_RxFrameDot(x, bottom);
+    }
+    for (uint8_t y = top + 3; y < bottom - 2; y += 2)
+    {
+        CLEARUI_RxFrameDot(0, y);
+        CLEARUI_RxFrameDot(127, y);
+    }
+    CLEARUI_RxFrameDot(1, top + 1);
+    CLEARUI_RxFrameDot(126, top + 1);
+    CLEARUI_RxFrameDot(1, bottom - 1);
+    CLEARUI_RxFrameDot(126, bottom - 1);
+}
+
 void UI_CLEARUI_RenderBackground(void)
 {
     // During established reception the hardware is held on RX_VFO. Read it
@@ -729,6 +790,7 @@ void UI_CLEARUI_RenderBackground(void)
     if (gScanStateDir != SCAN_OFF)
     {
         CLEARUI_DrawScanPane();
+        CLEARUI_DrawRxFrame();
         return;
     }
 
@@ -744,6 +806,7 @@ void UI_CLEARUI_RenderBackground(void)
             CLEARUI_DrawDualAInactive();
     }
 
+    CLEARUI_DrawRxFrame();
     CLEARUI_DrawToast();
     CLEARUI_DrawInput();
 }

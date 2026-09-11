@@ -153,6 +153,9 @@ const t_menu_item MenuList[] =
     {"SetInv",      MENU_SET_INV       },
     {"SetLck",      MENU_SET_LCK       },
     {"SetMet",      MENU_SET_MET       },
+#ifdef ENABLE_CLEAR_UI
+    {"RxFrm",       MENU_RX_FRAME      },
+#endif
     {"SetGUI",      MENU_SET_GUI       },
 #ifdef ENABLE_FEAT_F4HWN_AUDIO    
     {"SetRxA",      MENU_SET_AUD       },
@@ -939,6 +942,11 @@ static void UI_CLEARUI_MenuChoiceLabel(uint8_t id, int32_t value, char *text)
         case MENU_SET_EOT: strcpy(text, gSubMenu_SET_TOT[value]); break;
         case MENU_SET_LCK: strcpy(text, gSubMenu_SET_LCK[value]); break;
         case MENU_SET_MET: strcpy(text, gSubMenu_SET_MET[value]); break;
+#ifdef ENABLE_CLEAR_UI
+        case MENU_RX_FRAME:
+            strcpy(text, value == 2 ? "Inverted" : value == 1 ? "Dotted" : "Off");
+            break;
+#endif
         case MENU_SET_GUI: strcpy(text, value ? "Classic" : "Compact"); break;
 #ifdef ENABLE_FEAT_F4HWN_NARROWER
         case MENU_SET_NFM: strcpy(text, gSubMenu_SET_NFM[value]); break;

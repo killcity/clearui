@@ -12,6 +12,7 @@ bool gLowBatteryBlink, gLowBattery, gLowBatteryConfirmed, gRxIdleMode;
 bool gUpdateDisplay;
 bool gClearUINumericEntry;
 bool gSetting_mic_bar, gSetting_set_met;
+uint8_t gSetting_rx_frame;
 uint8_t gSetting_battery_text;
 uint16_t gBatteryVoltageAverage = 800;
 static unsigned fakePercent = 75;
@@ -357,6 +358,54 @@ int main(int argc, char **argv)
         gClearUINameScroll = level * 17;
         UI_CLEARUI_RenderBackground();
     }
+    // RX framing adds edge dots only: never moves/erases content or meters.
+    const FUNCTION_Type_t rxStates[] = {FUNCTION_FOREGROUND, FUNCTION_INCOMING,
+        FUNCTION_RECEIVE, FUNCTION_MONITOR, FUNCTION_TRANSMIT};
+    gInputBoxIndex = 0; gClearUINumericEntry = false; gClearUIToastTicks = 0;
+    for (unsigned style = 0; style < 2; ++style)
+    for (unsigned selected = 0; selected < 2; ++selected)
+    for (unsigned receiving = 0; receiving < 2; ++receiving)
+    for (unsigned single = 0; single < 2; ++single)
+    for (unsigned scanning = 0; scanning < 2; ++scanning)
+    for (unsigned frame = 1; frame <= 2; ++frame)
+    for (unsigned f = 0; f < sizeof(rxStates)/sizeof(*rxStates); ++f)
+    {
+        gSetting_set_met = style; gEeprom.TX_VFO = selected;
+        gEeprom.RX_VFO = receiving; gCurrentFunction = rxStates[f];
+        gEeprom.DUAL_WATCH = single ? DUAL_WATCH_OFF : DUAL_WATCH_CHAN_A;
+        gScanStateDir = scanning;
+        gSetting_rx_frame = false; UI_CLEARUI_RenderBackground();
+        uint8_t before[7][128], header[128];
+        memcpy(before, gFrameBuffer, sizeof(before));
+        memcpy(header, gStatusLine, sizeof(header));
+        gSetting_rx_frame = frame; UI_CLEARUI_RenderBackground();
+        assert(memcmp(header, gStatusLine, sizeof(header)) == 0);
+        const bool visible = (rxStates[f] == FUNCTION_RECEIVE ||
+            rxStates[f] == FUNCTION_MONITOR) && (!single || scanning || selected == receiving);
+        const unsigned split = selected ? 20 : 36;
+        const unsigned top = single || !receiving ? 0 : split;
+        const unsigned bottom = single || receiving ? 55 : split - 1;
+        unsigned additions = 0;
+        for (unsigned y = 0; y < 56; ++y) for (unsigned x = 0; x < 128; ++x)
+        {
+            const unsigned bit = 1u << (y % 8);
+            const bool was = before[y/8][x] & bit, now = gFrameBuffer[y/8][x] & bit;
+            if (frame == 1) assert(!was || now);
+            if (frame == 2) {
+                const int edge = MIN((int)y - (int)top, (int)bottom - (int)y);
+                const unsigned inset = edge == 0 ? 2 : edge == 1 ? 1 : 0;
+                const bool invert = visible && y >= top && y <= bottom &&
+                    x >= inset && x < 128 - inset;
+                assert(now == (was != invert));
+            }
+            if (was != now) {
+                ++additions; assert(visible && y >= top && y <= bottom);
+                if (frame == 1) assert(x <= 1 || x >= 126 || y == top || y == bottom);
+            }
+        }
+        assert(visible ? additions > 0 : additions == 0);
+    }
+    gSetting_rx_frame = false; gScanStateDir = SCAN_OFF;
     // Release previews, every pane position/style and the single-pane layout.
     gCurrentFunction = FUNCTION_FOREGROUND;
     gEeprom.CHANNEL_DISPLAY_MODE = MDF_NAME_FREQ;
@@ -377,6 +426,18 @@ int main(int argc, char **argv)
         snprintf(label, sizeof(label), "%s-%u-%s", style ? "ribbon" : "spine", active, single ? "single" : "dual");
         UI_CLEARUI_RenderBackground(); snapshot(argv[1], label);
     }
+    gSetting_set_met = true; gEeprom.DUAL_WATCH = DUAL_WATCH_CHAN_A;
+    gEeprom.TX_VFO = 0; gEeprom.RX_VFO = 1;
+    gCurrentFunction = FUNCTION_RECEIVE;
+    gSetting_rx_frame = true;
+    UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-frame-b-small");
+    gEeprom.TX_VFO = 1;
+    UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-frame-b-large");
+    gSetting_rx_frame = 2;
+    UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-inverted-b-large");
+    gEeprom.TX_VFO = 0;
+    UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-inverted-b-small");
+    gSetting_rx_frame = false; gCurrentFunction = FUNCTION_FOREGROUND;
     gEeprom.KEY_LOCK = true; gKeypadLocked = 4;
     UI_CLEARUI_RenderBackground(); snapshot(argv[1], "locked");
     gInputBoxIndex = 2; gInputBox[0] = 1; gInputBox[1] = 4;

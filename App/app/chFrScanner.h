@@ -17,6 +17,7 @@ uint8_t CHFRSCANNER_Owner(void);
 bool CHFRSCANNER_IsWatchingOther(void);
 bool CHFRSCANNER_PauseForPTT(void);
 void CHFRSCANNER_ResumeAfterPTT(bool ready);
+bool CHFRSCANNER_EditOtherVfo(int8_t direction, bool pressed);
 #endif
 
 #ifdef ENABLE_SCAN_RANGES
