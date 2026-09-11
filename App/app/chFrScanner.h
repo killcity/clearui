@@ -15,6 +15,8 @@ extern bool              gScanPauseMode;
 extern bool gClearUIScanWatch;
 uint8_t CHFRSCANNER_Owner(void);
 bool CHFRSCANNER_IsWatchingOther(void);
+bool CHFRSCANNER_PauseForPTT(void);
+void CHFRSCANNER_ResumeAfterPTT(bool ready);
 #endif
 
 #ifdef ENABLE_SCAN_RANGES

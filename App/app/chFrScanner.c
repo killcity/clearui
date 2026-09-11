@@ -26,6 +26,7 @@ bool              gScanPauseMode;
 #ifdef ENABLE_CLEAR_UI
 static uint8_t scanOwner;
 static bool scanWatchingOther;
+static int8_t scanPttResumeDirection;
 /* Session preference: reset to full-speed scanning at power-on. */
 bool gClearUIScanWatch = false;
 
@@ -287,6 +288,51 @@ static void CHFRSCANNER_AbortActiveReception(void)
     FUNCTION_Init();
     FUNCTION_Select(FUNCTION_FOREGROUND);
 }
+
+#ifdef ENABLE_CLEAR_UI
+bool CHFRSCANNER_PauseForPTT(void)
+{
+    if (gScanStateDir == SCAN_OFF || gEeprom.TX_VFO == scanOwner)
+        return false;
+
+    /* Keep the scan cursor, group, initial channel and last result in RAM.
+     * Stop() would save a result and destroy the active scan session. */
+    scanPttResumeDirection = gScanStateDir;
+    gScanStateDir = SCAN_OFF;
+    scanWatchingOther = false;
+    gScheduleScanListen = false;
+    CHFRSCANNER_AbortActiveReception();
+    RADIO_SelectVfos();
+    RADIO_SetupRegisters(true);
+    return true;
+}
+
+void CHFRSCANNER_ResumeAfterPTT(bool ready)
+{
+    if (!scanPttResumeDirection || !ready) return;
+    gScanStateDir = scanPttResumeDirection;
+    scanPttResumeDirection = SCAN_OFF;
+    ScanSelectReceiver(scanOwner);
+    /* Full reload: the last fast-scan candidate may only have been a precheck. */
+#ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER
+    ScanFastResetState();
+#endif
+    if (IS_MR_CHANNEL(gNextMrChannel))
+        RADIO_ConfigureChannel(scanOwner, VFO_CONFIGURE_RELOAD);
+    else
+    {
+        /* Reloading a VFO record would lose the in-RAM frequency cursor. */
+        RADIO_ApplyOffset(gRxVfo);
+        RADIO_ConfigureSquelchAndOutputPower(gRxVfo);
+    }
+    RADIO_SetupRegisters(true);
+    gScanPauseMode = false;
+    gRxReceptionMode = RX_MODE_NONE;
+    gScanPauseDelayIn_10ms = 1;
+    gScheduleScanListen = false;
+    gUpdateDisplay = true;
+}
+#endif
 
 #ifdef ENABLE_FEAT_F4HWN_SCAN_FASTER
 #define SCAN_FAST_PRECHECK_STEPS    6
@@ -780,6 +826,7 @@ static void SetMemScanProgressChannel(uint16_t channel)
 void CHFRSCANNER_Start(const bool storeBackupSettings, const int8_t scan_direction)
 {
 #ifdef ENABLE_CLEAR_UI
+    scanPttResumeDirection = SCAN_OFF;
     const uint8_t owner = !storeBackupSettings && gScanStateDir != SCAN_OFF
                         ? scanOwner : gEeprom.TX_VFO;
     if (IS_MR_CHANNEL(gEeprom.ScreenChannel[owner]))
@@ -1038,6 +1085,11 @@ void CHFRSCANNER_Found(void)
 void CHFRSCANNER_Stop(void)
 {
 #ifdef ENABLE_CLEAR_UI
+    if (scanPttResumeDirection)
+    {
+        gScanStateDir = scanPttResumeDirection;
+        scanPttResumeDirection = SCAN_OFF;
+    }
     if (gScanStateDir == SCAN_OFF) return;
     ScanSelectReceiver(scanOwner);
     scanWatchingOther = false;

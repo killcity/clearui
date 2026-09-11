@@ -1355,6 +1355,16 @@ void APP_Update(void)
     if (gReducedService)
         return;
 
+#ifdef ENABLE_CLEAR_UI
+    /* Wait for actual PTT release and the normal TX/tail shutdown. This also
+     * resumes a paused scan after a rejected (receive-only/locked) TX request. */
+    CHFRSCANNER_ResumeAfterPTT(!gPttIsPressed && !GPIO_IsPttPressed() &&
+        gCurrentFunction != FUNCTION_TRANSMIT && !gFlagPrepareTX &&
+        !gFlagEndTransmission && gRTTECountdown_10ms == 0 &&
+        !SerialConfigInProgress() && !gFlagReconfigureVfos &&
+        gVfoConfigureMode == VFO_CONFIGURE_NONE);
+#endif
+
     if (gCurrentFunction != FUNCTION_TRANSMIT)
         HandleFunction();
 

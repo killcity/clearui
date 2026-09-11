@@ -126,8 +126,13 @@ void GENERIC_Key_PTT(bool bKeyPressed)
     }
 
     if (gScanStateDir != SCAN_OFF) {    
+#ifdef ENABLE_CLEAR_UI
+        if (!CHFRSCANNER_PauseForPTT())
+#endif
+        {
         CHFRSCANNER_Stop(); // frequency/channel scanning . .stop
         goto cancel_tx;
+        }
     }
 
 

@@ -36,6 +36,7 @@ static struct { unsigned RX_VFO, TX_VFO, DUAL_WATCH, CROSS_BAND_RX_TX;
  unsigned SCAN_RESUME_MODE, MrChannel[2], ScreenChannel[2]; VFO VfoInfo[2]; } gEeprom;
 static VFO *gRxVfo,*gTxVfo,*gCurrentVfo;
 static uint8_t scanOwner;
+static int8_t scanPttResumeDirection;
 static bool scanWatchingOther, gScanKeepResult, gScanPauseMode, gScheduleScanListen;
 static bool gClearUIScanWatch;
 static bool gMonitor, gUpdateDisplay, gUpdateStatus, gHasVfoBackup;
@@ -61,12 +62,32 @@ static void APP_StartListening(unsigned f) {gCurrentFunction=f;CHFRSCANNER_Found
 '''
     scanner = 'App/app/chFrScanner.c'
     for name in ['CHFRSCANNER_Owner', 'CHFRSCANNER_IsWatchingOther', 'ScanSelectReceiver',
-                 'CHFRSCANNER_Found', 'CHFRSCANNER_ContinueScanning', 'CHFRSCANNER_Stop']:
+                 'CHFRSCANNER_Found', 'CHFRSCANNER_ContinueScanning', 'CHFRSCANNER_Stop',
+                 'CHFRSCANNER_PauseForPTT', 'CHFRSCANNER_ResumeAfterPTT']:
         source += function(scanner, name)
     source += function('App/app/common.c', 'COMMON_SwitchVFOs')
     source += r'''
+#define FUNCTION_TRANSMIT 4
+#define DISPLAY_MENU 1
+#define VFO_STATE_NORMAL 0
+#define DTMF_REPLY_ANI 1
+static bool gPttIsPressed,gPttWasPressed,gFlagPrepareTX,gDTMF_InputMode;
+static unsigned gScreenToDisplay,gRTTECountdown_10ms,gPttDebounceCounter;
+static unsigned gDTMF_InputBox_Index,gDTMF_PreviousIndex,gDTMF_ReplyState;
+static char gDTMF_InputBox[16],gDTMF_String[16];
+static bool SerialConfigInProgress(void) {return false;}
+static bool SCANNER_IsScanning(void) {return false;}
+static void SCANNER_Stop(void) {assert(false);}
+static void RADIO_SetVfoState(unsigned state) {(void)state;}
+static void APP_HandleEndTransmission(void) {gCurrentFunction=FUNCTION_FOREGROUND;}
+static void DTMF_clear_input_box(void) {}
+'''
+    source += function('App/app/generic.c', 'GENERIC_Key_PTT')
+    source += r'''
 static void begin(unsigned owner, bool memory) {
  memset(&gEeprom,0,sizeof(gEeprom)); scanOwner=owner;scanWatchingOther=false;
+ scanPttResumeDirection=0;
+ gFlagPrepareTX=false;gPttWasPressed=false;gPttIsPressed=false;
  gEeprom.TX_VFO=owner;gEeprom.RX_VFO=owner;gEeprom.DUAL_WATCH=owner+1;gClearUIScanWatch=true;
  gEeprom.SCAN_RESUME_MODE=1;gScanStateDir=1;gCurrentFunction=FUNCTION_FOREGROUND;
  gEeprom.VfoInfo[owner].CHANNEL_SAVE=memory?20:1024;
@@ -122,8 +143,36 @@ int main(void) {
   begin(owner,memory);CHFRSCANNER_ContinueScanning();gClearUIScanWatch=false;
   CHFRSCANNER_ContinueScanning();CHFRSCANNER_ContinueScanning();
   assert(steps==2 && !CHFRSCANNER_IsWatchingOther());
+  /* PTT on the owner retains the legacy cancel path; no pending resume. */
+  begin(owner,memory);assert(!CHFRSCANNER_PauseForPTT());
+  assert(gScanStateDir==1 && !scanPttResumeDirection);
+  for(unsigned watch=0;watch<2;watch++) for(int direction=-1;direction<=1;direction+=2) {
+   begin(owner,memory);gScanStateDir=direction;
+   if(watch) CHFRSCANNER_ContinueScanning();
+   COMMON_SwitchVFOs();unsigned cursor=gNextMrChannel;
+   gPttIsPressed=true;GENERIC_Key_PTT(true);
+   assert(gFlagPrepareTX && !gPttWasPressed);
+   assert(!gScanStateDir && scanPttResumeDirection==direction);
+   assert(gEeprom.RX_VFO==!owner && gTxVfo==&gEeprom.VfoInfo[!owner]);
+   assert(gNextMrChannel==cursor && lastFoundFrqOrChan==21 && !gScanKeepResult);
+   unsigned before=tunes;
+   CHFRSCANNER_ResumeAfterPTT(false); /* PTT, TX, tail, or config still active. */
+   assert(!gScanStateDir && tunes==before);
+   /* The normal TX gate can approve or reject the request. Both must resume
+    * only after unkey; these tests also cover the actual PTT handler. */
+   gFlagPrepareTX=false;gCurrentFunction=FUNCTION_TRANSMIT;
+   gPttIsPressed=false;GENERIC_Key_PTT(false);
+   assert(gCurrentFunction==FUNCTION_FOREGROUND);
+   CHFRSCANNER_ResumeAfterPTT(true);
+   assert(gScanStateDir==direction && !scanPttResumeDirection);
+   assert(gEeprom.RX_VFO==owner && gEeprom.TX_VFO==!owner);
+   assert(gNextMrChannel==cursor && gScanPauseDelayIn_10ms==1);
+   before=tunes;CHFRSCANNER_ResumeAfterPTT(true);assert(tunes==before);
+   assert(CHFRSCANNER_PauseForPTT());CHFRSCANNER_Stop();
+   CHFRSCANNER_ResumeAfterPTT(true);assert(!gScanStateDir && !scanPttResumeDirection);
+  }
  }
- puts("Scan/watch: A/B ownership, fixed-channel hold, scan resume, tone rejection and stop isolation passed.");
+ puts("Scan/watch: ownership, audio hold, PTT routing/pause/resume, tone rejection and stop isolation passed.");
 }
 '''
     with tempfile.TemporaryDirectory(prefix='clearui-scan-watch-') as tmp:

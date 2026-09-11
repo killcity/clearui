@@ -38,8 +38,8 @@ def main():
     }
     for name in ("MULTIBOOT.md", "SAFETY.md", "LICENSE", "NOTICE"):
         copies[root / name] = name
-    if (root / "RELEASE-C10a.md").exists():
-        copies[root / "RELEASE-C10a.md"] = "RELEASE-C10a.md"
+    for notes in sorted(root.glob("RELEASE-C10*.md")):
+        copies[notes] = notes.name
     for source, name in copies.items():
         shutil.copy2(source, args.output / name)
     shutil.copytree(root / "LICENSES", args.output / "LICENSES")
