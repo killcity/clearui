@@ -358,7 +358,7 @@ int main(int argc, char **argv)
         gClearUINameScroll = level * 17;
         UI_CLEARUI_RenderBackground();
     }
-    // RX framing adds edge dots only: never moves/erases content or meters.
+    // RX shading preserves content; inversion changes exactly the pane mask.
     const FUNCTION_Type_t rxStates[] = {FUNCTION_FOREGROUND, FUNCTION_INCOMING,
         FUNCTION_RECEIVE, FUNCTION_MONITOR, FUNCTION_TRANSMIT};
     gInputBoxIndex = 0; gClearUINumericEntry = false; gClearUIToastTicks = 0;
@@ -390,7 +390,17 @@ int main(int argc, char **argv)
         {
             const unsigned bit = 1u << (y % 8);
             const bool was = before[y/8][x] & bit, now = gFrameBuffer[y/8][x] & bit;
-            if (frame == 1) assert(!was || now);
+            if (frame == 1) {
+                const int edge = MIN((int)y-(int)top, (int)bottom-(int)y);
+                const unsigned inset = edge == 0 ? 2 : edge == 1 ? 1 : 0;
+                bool dot = visible && y >= top && y <= bottom &&
+                    x >= inset && x < 128-inset && ((x+y-top)%2 == 1);
+                for (int yy=(int)y-1; yy<=(int)y+1; ++yy)
+                    for (int xx=(int)x-1; xx<=(int)x+1; ++xx)
+                        if (xx>=0 && xx<128 && yy>=0 && yy<56 &&
+                            (before[yy/8][xx] & (1u << (yy%8)))) dot=false;
+                assert(now == (was || dot));
+            }
             if (frame == 2) {
                 const int edge = MIN((int)y - (int)top, (int)bottom - (int)y);
                 const unsigned inset = edge == 0 ? 2 : edge == 1 ? 1 : 0;
@@ -400,7 +410,13 @@ int main(int argc, char **argv)
             }
             if (was != now) {
                 ++additions; assert(visible && y >= top && y <= bottom);
-                if (frame == 1) assert(x <= 1 || x >= 126 || y == top || y == bottom);
+                if (frame == 1) {
+                    assert((x+y-top)%2 == 1);
+                    for (int yy=(int)y-1; yy<=(int)y+1; ++yy)
+                        for (int xx=(int)x-1; xx<=(int)x+1; ++xx)
+                            if (xx>=0 && xx<128 && yy>=0 && yy<56)
+                                assert(!(before[yy/8][xx] & (1u << (yy%8))));
+                }
             }
         }
         assert(visible ? additions > 0 : additions == 0);

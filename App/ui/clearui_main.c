@@ -705,18 +705,6 @@ static void CLEARUI_DrawInput(void)
     CLEARUI_DrawNameAt(text, 0, 16, 128);
 }
 
-static void CLEARUI_RxFrameDot(uint8_t x, uint8_t y)
-{
-    // Keep the existing edge-aligned lettering and meters untouched, with
-    // a one-pixel breathing space wherever the frame passes content.
-    for (int yy = (int)y - 1; yy <= (int)y + 1; ++yy)
-        for (int xx = (int)x - 1; xx <= (int)x + 1; ++xx)
-            if (xx >= 0 && xx < 128 && yy >= 0 && yy < 56 &&
-                (gFrameBuffer[yy / 8][xx] & (1u << (yy % 8))))
-                return;
-    UI_DrawPixelBuffer(gFrameBuffer, x, y, true);
-}
-
 static void CLEARUI_DrawRxFrame(void)
 {
     if (!gSetting_rx_frame ||
@@ -750,20 +738,35 @@ static void CLEARUI_DrawRxFrame(void)
         }
         return;
     }
-    for (uint8_t x = 3; x < 125; x += 2)
+    // Static 50% checkerboard, with clearance around ORIGINAL content.
+    // Cache one original row so added dots cannot suppress subsequent dots.
+    uint8_t previous[128], dots[128];
+    for (uint8_t x = 0; x < 128; ++x)
+        previous[x] = top > 0 && (gFrameBuffer[(top - 1) / 8][x] &
+                                      (1u << ((top - 1) % 8)));
+    for (uint8_t y = top; y <= bottom; ++y)
     {
-        CLEARUI_RxFrameDot(x, top);
-        CLEARUI_RxFrameDot(x, bottom);
+        const uint8_t edge = MIN(y - top, bottom - y);
+        const uint8_t inset = edge == 0 ? 2 : edge == 1 ? 1 : 0;
+        for (uint8_t x = 0; x < 128; ++x)
+        {
+            dots[x] = x >= inset && x < 128 - inset && ((x + y - top) & 1);
+            if (!dots[x]) continue;
+            for (int xx = (int)x - 1; xx <= (int)x + 1; ++xx)
+            {
+                if (xx < 0 || xx >= 128) continue;
+                if (previous[xx]) dots[x] = 0;
+                for (uint8_t yy = y; yy <= y + 1 && yy < 56; ++yy)
+                    if (gFrameBuffer[yy / 8][xx] & (1u << (yy % 8)))
+                        dots[x] = 0;
+            }
+        }
+        for (uint8_t x = 0; x < 128; ++x)
+        {
+            previous[x] = !!(gFrameBuffer[y / 8][x] & (1u << (y % 8)));
+            if (dots[x]) UI_DrawPixelBuffer(gFrameBuffer, x, y, true);
+        }
     }
-    for (uint8_t y = top + 3; y < bottom - 2; y += 2)
-    {
-        CLEARUI_RxFrameDot(0, y);
-        CLEARUI_RxFrameDot(127, y);
-    }
-    CLEARUI_RxFrameDot(1, top + 1);
-    CLEARUI_RxFrameDot(126, top + 1);
-    CLEARUI_RxFrameDot(1, bottom - 1);
-    CLEARUI_RxFrameDot(126, bottom - 1);
 }
 
 void UI_CLEARUI_RenderBackground(void)

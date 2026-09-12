@@ -60,7 +60,7 @@ static uint8_t SETTINGS_ClearUIRxFrame(const uint8_t *block)
 static void SETTINGS_SaveClearUIRxFrame(uint8_t *block, uint8_t mode)
 {
     // Keep the existing enable bit. A tagged, formerly unused byte selects
-    // inversion; old On settings remain Dotted, including erased byte 3.
+    // inversion; old On/Dotted settings become Light shade, including erased byte 3.
     block[5] = (block[5] & ~0x20) | (mode == 1 || mode == 2 ? 0x20 : 0);
     block[3] = mode == 2 ? 0xA2 : 0xFF;
 }
