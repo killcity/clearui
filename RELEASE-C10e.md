@@ -3,6 +3,10 @@
 Four optional effects make the receiving memory name easier to spot, on a plain
 background. Liquid lettering now runs a faster **1.6-second loop**.
 
+The vertical **Spine** signal meter is the default for fresh/reset settings and
+is shown in the previews below. Existing saved meter choices are preserved;
+choose **Display → Meter style → Spine** to switch an existing configuration.
+
 ## Choose an effect
 
 **Display → RX frame → Name sweep / Marquee chase / Zipper sweep / Liquid lettering**

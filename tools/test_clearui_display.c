@@ -515,6 +515,8 @@ int main(int argc, char **argv)
     UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-inverted-b-large");
     gEeprom.TX_VFO = 0;
     UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-inverted-b-small");
+    // Release animation previews use the fresh-settings default: vertical Spine.
+    gSetting_set_met = false;
     for (unsigned animation=3;animation<=6;++animation)
     for (unsigned selected=0;selected<2;++selected){
         char label[40];
