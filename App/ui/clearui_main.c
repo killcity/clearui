@@ -28,6 +28,7 @@ static char    gClearUIToast[18];
 static uint8_t gClearUIToastTicks;
 static uint8_t gClearUINameScroll;
 static uint8_t gClearUITxLevel;
+static uint8_t gClearUISweepPhase;
 static uint16_t gClearUILastChannel[2] = {0xFFFF, 0xFFFF};
 
 void UI_CLEARUI_ShowToast(const char *text)
@@ -412,8 +413,35 @@ static void CLEARUI_SampleSignalMeter(void)
     gVFO_RSSI_bar_level[vfo] = level;
 }
 
+static void CLEARUI_TickNameSweep(void)
+{
+    static uint8_t ticks, lastRx = 0xFF;
+    static uint16_t lastChannel = 0xFFFF;
+    const uint8_t rx = gEeprom.RX_VFO;
+    const uint16_t channel = gEeprom.ScreenChannel[rx];
+    if (gSetting_rx_frame < 3 || gSetting_rx_frame > 6 || gScreenToDisplay != DISPLAY_MAIN ||
+        (gCurrentFunction != FUNCTION_RECEIVE && gCurrentFunction != FUNCTION_MONITOR))
+    {
+        ticks = gClearUISweepPhase = 0;
+        lastRx = 0xFF;
+        return;
+    }
+    if (lastRx != rx || lastChannel != channel)
+    {
+        lastRx = rx; lastChannel = channel;
+        ticks = gClearUISweepPhase = 0;
+    }
+    if (++ticks >= (gSetting_rx_frame == 6 ? 4 : 10))
+    {
+        ticks = 0;
+        gClearUISweepPhase = (gClearUISweepPhase + 1) % 40;
+        gUpdateDisplay = true;
+    }
+}
+
 void UI_CLEARUI_TimeSlice10ms(void)
 {
+    CLEARUI_TickNameSweep();
     static uint8_t sampleCountdown;
     static uint8_t lastVfo = 0xFF;
     const uint8_t vfo = gEeprom.RX_VFO;
@@ -705,6 +733,117 @@ static void CLEARUI_DrawInput(void)
     CLEARUI_DrawNameAt(text, 0, 16, 128);
 }
 
+static void CLEARUI_DrawNameAnimation(uint8_t vfo, uint8_t top, bool single)
+{
+    if (!CLEARUI_IsMemory(vfo) || gEeprom.CHANNEL_DISPLAY_MODE == MDF_FREQUENCY)
+        return;
+    const bool largePane = single || vfo == gEeprom.TX_VFO;
+    const bool frequencyFirst = gEeprom.CHANNEL_DISPLAY_MODE == MDF_FREQ_NAME;
+    const bool nameOnly = gEeprom.CHANNEL_DISPLAY_MODE == MDF_NAME;
+    uint8_t y, height, width;
+    char name[17];
+    CLEARUI_ChannelName(vfo, name);
+    if (largePane && !frequencyFirst)
+    {
+        y = single ? (nameOnly ? 18 : 12) : top + (nameOnly ? 7 : 3);
+        height = CLEARUI_FONT_HEIGHT;
+        width = MIN(CLEARUI_NameWidth(name), gSetting_set_met ? 128 : 114);
+    }
+    else
+    {
+        y = single ? 12 : top + (frequencyFirst ? (largePane ? 2 : 1) : (nameOnly ? 3 : 1));
+        height = !largePane && frequencyFirst ? 5 : 8;
+        width = MIN(strlen(name) * (height == 5 ? 4 : 7), 128);
+    }
+    if (width == 0) return;
+    const uint8_t next = single ? (nameOnly ? 49 : frequencyFirst ? 23 : 29) :
+        top + (largePane ? (nameOnly ? 29 : frequencyFirst ? 13 : 20) :
+                          (nameOnly ? 14 : frequencyFirst ? 7 : 9));
+    if (gSetting_rx_frame == 6)
+    {
+        static const int8_t wave[8] = {0, 1, 1, 1, 0, -1, -1, -1};
+        const uint8_t upper = MAX(top, y > 0 ? y - 1 : 0);
+        const uint8_t lower = MIN(y + height, next - 1);
+        // One column at a time: bounded motion never changes neighboring
+        // columns or borrows a row from frequency/mode/meter content.
+        for (uint8_t x = 0; x < width; ++x)
+        {
+            uint16_t bits = 0;
+            for (uint8_t row = 0; row < height; ++row)
+            {
+                const uint8_t yy = y + row, mask = 1u << (yy % 8);
+                if (gFrameBuffer[yy / 8][x] & mask) bits |= 1u << row;
+                gFrameBuffer[yy / 8][x] &= ~mask;
+            }
+            const int8_t dy = wave[(gClearUISweepPhase * 8 / 40 + 8 - (x / 8) % 8) % 8];
+            for (uint8_t row = 0; row < height; ++row)
+                if (bits & (1u << row))
+                    UI_DrawPixelBuffer(gFrameBuffer, x,
+                        MAX(upper, MIN(lower, y + row + dy)), true);
+        }
+        return;
+    }
+    if (gSetting_rx_frame == 4)
+    {
+        // Fit the chasing outline into available name space; never borrow
+        // rows from the frequency, mode label or meter below it.
+        const uint8_t upper = MAX(top, y > 1 ? y - 2 : 0);
+        const uint8_t lower = MIN(y + height, next - 1);
+        const uint8_t right = MIN(width + 2, gSetting_set_met ? 127 : 113);
+        const uint16_t perimeter = 2 * (right + lower - upper);
+        const uint16_t phase = (uint32_t)gClearUISweepPhase * perimeter / 40;
+        uint16_t dots[100];
+        uint8_t count = 0;
+        for (uint16_t i = 0; i < perimeter; ++i)
+        {
+            if ((i + perimeter - phase) % 16 >= 5) continue;
+            uint16_t p = i;
+            uint8_t xx, yy;
+            if (p < right) { xx = p; yy = upper; }
+            else if ((p -= right) < lower - upper) { xx = right; yy = upper + p; }
+            else if ((p -= lower - upper) < right) { xx = right - p; yy = lower; }
+            else { p -= right; xx = 0; yy = lower - p; }
+            // Outline pixels cannot obscure lettering or join nearby glyphs.
+            bool clear = true;
+            for (int cy = (int)yy - 1; cy <= (int)yy + 1; ++cy)
+                for (int cx = (int)xx - 1; cx <= (int)xx + 1; ++cx)
+                    if (cx >= 0 && cx < 128 && cy >= 0 && cy < 56 &&
+                        (gFrameBuffer[cy / 8][cx] & (1u << (cy % 8)))) clear = false;
+            if (clear && count < 100) dots[count++] = ((uint16_t)yy << 7) | xx;
+        }
+        // Draw after testing clearance so a dash does not erase its own neighbors.
+        for (uint8_t i = 0; i < count; ++i)
+            UI_DrawPixelBuffer(gFrameBuffer, dots[i] & 127, dots[i] >> 7, true);
+        return;
+    }
+    if (gSetting_rx_frame == 5)
+    {
+        const uint16_t t = gClearUISweepPhase <= 20 ? gClearUISweepPhase : 40 - gClearUISweepPhase;
+        const uint32_t ease = t * t * (60 - 2 * t);
+        const int16_t left = -7 + ((width / 2 + 7) * ease) / 8000;
+        const int16_t right = width + 7 - ((width - width / 2 + 7) * ease) / 8000;
+        for (uint8_t yy = y; yy < y + height; ++yy)
+        {
+            const int16_t slant = ((int16_t)(yy - y) * 2 - height) / 6;
+            for (uint8_t x = 0; x < width; ++x)
+            {
+                const int16_t a = x - left - slant, b = x - right - slant;
+                if ((a > -4 && a < 4) != (b > -4 && b < 4))
+                    gFrameBuffer[yy / 8][x] ^= 1u << (yy % 8);
+            }
+        }
+        return;
+    }
+    const int16_t center = (uint16_t)gClearUISweepPhase * (width + 24) / 40 - 12;
+    // Add one stroke pixel only in the moving band. Right-to-left traversal
+    // prevents new pixels from feeding back into further thickening.
+    for (int x = width - 1; x > 0; --x)
+        if (x > center - 7 && x < center + 7)
+            for (uint8_t yy = y; yy < y + height; ++yy)
+                if (gFrameBuffer[yy / 8][x - 1] & (1u << (yy % 8)))
+                    gFrameBuffer[yy / 8][x] |= 1u << (yy % 8);
+}
+
 static void CLEARUI_DrawRxFrame(void)
 {
     if (!gSetting_rx_frame ||
@@ -724,6 +863,11 @@ static void CLEARUI_DrawRxFrame(void)
         const uint8_t split = gEeprom.TX_VFO == 0 ? 36 : 20;
         if (gEeprom.RX_VFO == 0) bottom = split - 1;
         else top = split;
+    }
+    if (gSetting_rx_frame >= 3 && gSetting_rx_frame <= 6)
+    {
+        CLEARUI_DrawNameAnimation(gEeprom.RX_VFO, top, CLEARUI_IsSingleBand());
+        return; // No background shading in this mode.
     }
     if (gSetting_rx_frame == 2)
     {

@@ -202,7 +202,7 @@ extern enum BacklightOnRxTx_t gSetting_backlight_on_tx_rx;
     extern uint8_t            gSetting_set_lck;
     extern bool               gSetting_set_met;
 #ifdef ENABLE_CLEAR_UI
-    extern uint8_t            gSetting_rx_frame; // 0 Off, 1 Light shade, 2 Inverted
+    extern uint8_t            gSetting_rx_frame; // 0 Off, 1 Shade, 2 Inverted, 3 Sweep, 4 Marquee, 5 Zipper, 6 Liquid
 #endif
     extern bool               gSetting_set_gui;
     #ifdef ENABLE_FEAT_F4HWN_AUDIO

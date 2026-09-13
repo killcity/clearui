@@ -944,7 +944,8 @@ static void UI_CLEARUI_MenuChoiceLabel(uint8_t id, int32_t value, char *text)
         case MENU_SET_MET: strcpy(text, gSubMenu_SET_MET[value]); break;
 #ifdef ENABLE_CLEAR_UI
         case MENU_RX_FRAME:
-            strcpy(text, value == 2 ? "Inverted" : value == 1 ? "Light shade" : "Off");
+            strcpy(text, value == 6 ? "Liquid lettering" : value == 5 ? "Zipper sweep" : value == 4 ? "Marquee chase" :
+                         value == 3 ? "Name sweep" : value == 2 ? "Inverted" : value == 1 ? "Light shade" : "Off");
             break;
 #endif
         case MENU_SET_GUI: strcpy(text, value ? "Classic" : "Compact"); break;

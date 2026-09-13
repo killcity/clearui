@@ -53,7 +53,8 @@ static uint8_t SETTINGS_ClearUIRxFrame(const uint8_t *block)
 {
     for (uint8_t i = 0; i < 8; ++i)
         if (block[i] != 0xFF)
-            return !(block[5] & 0x20) ? 0 : block[3] == 0xA2 ? 2 : 1;
+            return !(block[5] & 0x20) ? 0 :
+                block[3] >= 0xA2 && block[3] <= 0xA6 ? block[3] - 0xA0 : 1;
     return false;
 }
 
@@ -61,8 +62,8 @@ static void SETTINGS_SaveClearUIRxFrame(uint8_t *block, uint8_t mode)
 {
     // Keep the existing enable bit. A tagged, formerly unused byte selects
     // inversion; old On/Dotted settings become Light shade, including erased byte 3.
-    block[5] = (block[5] & ~0x20) | (mode == 1 || mode == 2 ? 0x20 : 0);
-    block[3] = mode == 2 ? 0xA2 : 0xFF;
+    block[5] = (block[5] & ~0x20) | (mode >= 1 && mode <= 6 ? 0x20 : 0);
+    block[3] = mode >= 2 && mode <= 6 ? 0xA0 + mode : 0xFF;
 }
 
 static bool SETTINGS_ClearUIMeterStyle(const uint8_t *block)

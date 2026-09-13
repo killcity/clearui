@@ -4,11 +4,11 @@ A community-developed interface for the **Quansheng UV-K1**, based on
 [F4HWN Fusion 6.0.0](https://github.com/armel/uv-k1-k5v3-firmware-custom/releases/tag/v6.0.0).
 An independent, experimental fork—not an official F4HWN release.
 
-**This branch contains C10d: 50% receive shading and independent channel browsing.**
+**This branch contains C10e: animated receive-name effects.**
 It adds Fusion 6 multiboot and separate configuration banks while retaining the
 ClearUI interface and HF listening mode. Read [MULTIBOOT.md](MULTIBOOT.md) for
 installation, the required C10 CHIRP module, and legacy-memory migration.
-See [C10d release notes](RELEASE-C10d.md) for shading, compatibility and scanning tradeoffs.
+See [C10e release notes](RELEASE-C10e.md) for animated previews and compatibility.
 
 > [!WARNING]
 > **Use at your own risk.** This firmware can brick your radio, erase calibration
@@ -38,10 +38,11 @@ See [more display layouts](images/clearui-vfo-gallery.png).
 - A ClearUI startup logo and icon/voltage/percentage/combined battery readouts.
 - Browse the selected VFO's group while the other VFO continues scanning.
 - Optional light-shade (50% stipple) or inverted receive highlighting under Display → RX frame.
+- Optional Name sweep, Marquee chase, Zipper sweep and Liquid lettering on the receiving memory name, without a shaded background.
 
 ## Status and supported hardware
 
-**C10d is an experimental release for UV-K1.** The upstream repository also
+**C10e is an experimental release for UV-K1.** The upstream repository also
 targets UV-K5 V3, but this fork's community build is not claimed tested on that
 model. Do **not** flash it onto an older UV-K5/UV-K6 with the DP32G030 MCU.
 

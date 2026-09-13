@@ -439,7 +439,7 @@ int MENU_GetLimits(uint8_t menu_id, int32_t *pMin, int32_t *pMax)
             break;
 #ifdef ENABLE_CLEAR_UI
         case MENU_RX_FRAME:
-            *pMax = 2;
+            *pMax = 6;
             break;
 #endif
         case MENU_SET_MET:

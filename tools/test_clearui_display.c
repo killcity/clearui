@@ -422,6 +422,68 @@ int main(int argc, char **argv)
         assert(visible ? additions > 0 : additions == 0);
     }
     gSetting_rx_frame = false; gScanStateDir = SCAN_OFF;
+    // Sweep changes only one-pixel glyph strokes, never a shaded background.
+    gScreenToDisplay = DISPLAY_MAIN;
+    gCurrentFunction = FUNCTION_RECEIVE;
+    gEeprom.ScreenChannel[0] = 0; gEeprom.ScreenChannel[1] = 65;
+    strcpy(gEeprom.VfoInfo[0].Name, "Relay One");
+    strcpy(gEeprom.VfoInfo[1].Name, "Lake View");
+    unsigned sweepChanges = 0;
+    for (unsigned style=0; style<2; ++style)
+    for (unsigned selected=0; selected<2; ++selected)
+    for (unsigned rx=0; rx<2; ++rx)
+    for (unsigned single=0; single<2; ++single)
+    for (unsigned mode=0; mode<4; ++mode)
+    for (unsigned animation=3; animation<=6; ++animation)
+    for (unsigned phase=0; phase<40; ++phase)
+    {
+        gSetting_set_met=style; gEeprom.TX_VFO=selected; gEeprom.RX_VFO=rx;
+        gEeprom.DUAL_WATCH=single?DUAL_WATCH_OFF:DUAL_WATCH_CHAN_A;
+        gEeprom.CHANNEL_DISPLAY_MODE=mode;
+        gSetting_rx_frame=0; UI_CLEARUI_RenderBackground();
+        uint8_t before[7][128], status[128];
+        memcpy(before,gFrameBuffer,sizeof(before));memcpy(status,gStatusLine,128);
+        gSetting_rx_frame=animation;gClearUISweepPhase=phase;UI_CLEARUI_RenderBackground();
+        assert(!memcmp(status,gStatusLine,128));
+        const bool large=single || rx==selected;
+        const unsigned top=single || !rx?0:(selected?20:36);
+        const unsigned y0=large && mode!=MDF_FREQ_NAME?
+            (single?(mode==MDF_NAME?18:12):top+(mode==MDF_NAME?7:3)):
+            (single?12:top+(mode==MDF_FREQ_NAME?(large?2:1):(mode==MDF_NAME?3:1)));
+        const unsigned height=large && mode!=MDF_FREQ_NAME?14:(!large&&mode==MDF_FREQ_NAME?5:8);
+        const unsigned next=single?(mode==MDF_NAME?49:mode==MDF_FREQ_NAME?23:29):
+            top+(large?(mode==MDF_NAME?29:mode==MDF_FREQ_NAME?13:20):
+                       (mode==MDF_NAME?14:mode==MDF_FREQ_NAME?7:9));
+        for(unsigned y=0;y<56;++y)for(unsigned x=0;x<128;++x){
+            const unsigned bit=1u<<(y%8);
+            bool was=before[y/8][x]&bit,now=gFrameBuffer[y/8][x]&bit;
+            if(animation==3||animation==4)assert(!was||now);
+            if(was!=now){
+                ++sweepChanges;
+                assert((!single||rx==selected)&&mode!=MDF_FREQUENCY);
+                if(animation==3){
+                    assert(y>=y0&&y<y0+height&&x>0);
+                    assert(before[y/8][x-1]&bit);
+                }else if(animation==5){assert(y>=y0&&y<y0+height);}
+                else {assert(y>=MAX(top,y0>(animation==4?2:1)?y0-(animation==4?2:1):0)&&
+                             y<=MIN(y0+height,next-1));}
+            }
+        }
+    }
+    assert(sweepChanges>0);
+    for(unsigned animation=3;animation<=6;++animation){
+    gCurrentFunction=FUNCTION_RECEIVE;
+    gSetting_rx_frame=0;CLEARUI_TickNameSweep();assert(gClearUISweepPhase==0);
+    gSetting_rx_frame=animation;gUpdateDisplay=false;
+    const unsigned cadence=animation==6?4:10;
+    for(unsigned i=0;i<cadence-1;++i)CLEARUI_TickNameSweep();
+    assert(!gClearUISweepPhase&&!gUpdateDisplay);
+    CLEARUI_TickNameSweep();assert(gClearUISweepPhase==1&&gUpdateDisplay);
+    for(unsigned i=cadence;i<40*cadence;++i)CLEARUI_TickNameSweep();
+    assert(gClearUISweepPhase==0);
+    gCurrentFunction=FUNCTION_TRANSMIT;CLEARUI_TickNameSweep();assert(!gClearUISweepPhase);
+    }
+    gSetting_rx_frame=0;
     // Release previews, every pane position/style and the single-pane layout.
     gCurrentFunction = FUNCTION_FOREGROUND;
     gEeprom.CHANNEL_DISPLAY_MODE = MDF_NAME_FREQ;
@@ -453,6 +515,18 @@ int main(int argc, char **argv)
     UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-inverted-b-large");
     gEeprom.TX_VFO = 0;
     UI_CLEARUI_RenderBackground(); snapshot(argv[1], "rx-inverted-b-small");
+    for (unsigned animation=3;animation<=6;++animation)
+    for (unsigned selected=0;selected<2;++selected){
+        char label[40];
+        gSetting_rx_frame=animation;gClearUISweepPhase=12;gEeprom.TX_VFO=selected;
+        snprintf(label,sizeof(label),"animation-%u-selected-%u",animation,selected);
+        UI_CLEARUI_RenderBackground();snapshot(argv[1],label);
+        for(unsigned phase=0;phase<40;++phase){
+            gClearUISweepPhase=phase;
+            snprintf(label,sizeof(label),"animation-%u-selected-%u-phase-%02u",animation,selected,phase);
+            UI_CLEARUI_RenderBackground();snapshot(argv[1],label);
+        }
+    }
     gSetting_rx_frame = false; gCurrentFunction = FUNCTION_FOREGROUND;
     gEeprom.KEY_LOCK = true; gKeypadLocked = 4;
     UI_CLEARUI_RenderBackground(); snapshot(argv[1], "locked");

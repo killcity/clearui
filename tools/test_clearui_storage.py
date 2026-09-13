@@ -54,10 +54,10 @@ int main(void) {
         assert(SETTINGS_ClearUIRxFrame(settings) == ((value & 0x20) != 0));
     }
     uint8_t data[8] = {1,2,3,4,5,6,7,8};
-    for (unsigned mode = 0; mode < 4; ++mode) {
+    for (unsigned mode = 0; mode < 8; ++mode) {
         memset(settings, 0x55, sizeof(settings));
         SETTINGS_SaveClearUIRxFrame(settings, mode);
-        assert(SETTINGS_ClearUIRxFrame(settings) == (mode < 3 ? mode : 0));
+        assert(SETTINGS_ClearUIRxFrame(settings) == (mode < 7 ? mode : 0));
         assert((settings[5] & ~0x20) == (0x55 & ~0x20));
         for (unsigned i = 0; i < 8; ++i)
             if (i != 3 && i != 5) assert(settings[i] == 0x55);

@@ -43,6 +43,8 @@ def main():
     for source, name in copies.items():
         shutil.copy2(source, args.output / name)
     shutil.copytree(root / "LICENSES", args.output / "LICENSES")
+    if (root / "images/rx-animations").is_dir():
+        shutil.copytree(root / "images/rx-animations", args.output / "rx-animations")
     subprocess.run(["git", "archive", "--format=tar.gz", "--prefix=clearui-source/",
                     "-o", str(args.output.resolve() / "clearui-source.tar.gz"), "HEAD"],
                    cwd=root, check=True)
